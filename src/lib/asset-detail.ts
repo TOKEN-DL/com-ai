@@ -28,6 +28,8 @@ export type ExtraFileView = {
 
 export type SkillDetailView = {
   slug: string;
+  /// 资产主表 id（评论、举报等站内内容挂在它下面）。
+  assetId: string;
   /// 英文原文名。
   displayName: string;
   /// 中文简介（现在是模板生成，#7 之后由 LLM 覆盖）。
@@ -132,6 +134,7 @@ export async function getSkillDetail(slug: string): Promise<SkillDetailView | nu
 
   return {
     slug: asset.slug,
+    assetId: asset.id,
     displayName: asset.displayName,
     summaryZh: asset.summaryZh,
     summarySource: asset.summarySource,
