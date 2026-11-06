@@ -406,6 +406,9 @@ describe("更新后详情页展示新版本内容", () => {
     );
 
     expect(outcome.status).toBe("recorded");
+    if (outcome.status !== "recorded") {
+      throw new Error(`期望首次记录版本，实际：${outcome.status}`);
+    }
     expect(outcome.contentUpdated).toBe(false);
 
     const stored = await prisma.asset.findUniqueOrThrow({ where: { id: asset.id } });

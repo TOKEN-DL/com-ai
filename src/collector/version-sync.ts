@@ -88,7 +88,15 @@ export type SyncOutcome =
       contentUpdated: boolean;
     }
   /// 第一次记录这个资产的上游版本。
-  | { status: "recorded"; slug: string; assetId: string; version: string; changelog: string }
+  | {
+      status: "recorded";
+      slug: string;
+      assetId: string;
+      version: string;
+      changelog: string;
+      /// 正文是否真的回写了（METADATA_ONLY 档位或没取到正文时为 false）。
+      contentUpdated: boolean;
+    }
   /// 上游没有新提交。
   | { status: "up-to-date"; slug: string; assetId: string; version: string }
   /// 这个资产没有来源仓库信息，同步不了。
@@ -230,8 +238,7 @@ export async function syncAssetVersion(
     version: head.sha,
     changelog: summary.text,
     contentUpdated,
-  };
-}
+  };}
 
 /**
  * 生成变更日志。
