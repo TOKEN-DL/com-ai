@@ -80,7 +80,7 @@ describe("解析模型回复", () => {
       }),
     );
 
-    expect(parsed?.summaryZh).toBe("把 PDF 转 Markdown 的 Skill。");
+    expect(parsed?.summaryZh).toBe("一个把 PDF 转 Markdown 的 Skill。");
     expect(parsed?.whenToUse).toBe("批量处理 PDF 时。");
     expect(parsed?.tags).toEqual(["文档处理", "PDF"]);
   });

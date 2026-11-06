@@ -610,6 +610,9 @@ model UserPublishedAsset {
   @@unique([userId, assetId])
   @@index([status])
   @@index([userId, publishedAt])
+  /// 检索与列表的「下架过滤」用这个索引：判断一个资产有没有非 PUBLISHED 的
+  /// 发布记录时，走索引而不是全表扫（资产量到万级时差很多）。
+  @@index([assetId, status])
   @@map("UserPublishedAsset")
 }
 
