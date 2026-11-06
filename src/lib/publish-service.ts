@@ -27,6 +27,7 @@
  * 不做全量预审队列：新发布默认可见，否则单人运营下会立刻成为瓶颈。
  */
 import type { Asset, AssetKind, ContentTier, PublishStatus, SummarySource } from "@prisma/client";
+import { createHash } from "node:crypto";
 
 import { writeAsset } from "@/lib/asset-writer";
 import { normalizeSpdxId, resolveContentTier } from "@/lib/license-tier";
@@ -185,6 +186,11 @@ export function buildPublishSlug(owner: string, name: string): string {
 /** 允许发布的资产类型。 */
 const PUBLISHABLE_KINDS: readonly AssetKind[] = ["SKILL", "MCP", "PROMPT"];
 
+/** 内容 hash（SHA-256，十六进制）。给端口当「这份内容」的标识用。 */
+function contentHashOf(content: string): string {
+  return createHash("sha256").update(content, "utf8").digest("hex");
+}
+
 /**
  * 发布一个资产。
  *
@@ -260,6 +266,10 @@ export async function publishAsset(
     kind,
     displayName,
     contentBody: input.contentBody ?? null,
+    // 算出来递给端口：#7 的「按内容 hash 缓存」直接用这个值。
+    // 一期不做缓存（那是 #7 的验收标准）。
+    contentHash: contentHashOf(input.contentBody ?? description),
+    sourceId: USER_PUBLISHED_SOURCE_ID,
     description,
     repoOwner: repo.owner,
     repoName: repo.name,

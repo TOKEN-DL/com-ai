@@ -35,6 +35,14 @@ export type SummaryGeneratorInput = {
   /// ⚠️ 只有 FULL 档位才有值；METADATA_ONLY 档位一定是 null
   ///    （站内不复制原文，也不生成基于原文的简介）。
   contentBody: string | null;
+  /// 资产正文的内容 hash。
+  ///
+  /// **#7（中文简介）用得上**：按内容 hash 缓存，避免同一份内容重复调模型。
+  /// 一期（#11）只是把它算出来递给端口，不做缓存 —— 缓存是 #7 的活。
+  contentHash?: string | null;
+  /// 来源标识（如 "skills.sh" / "user"）：这条资产是从哪儿来的。
+  /// 留给 #7 做「同一份内容换个来源就别重复生成」这类判断。
+  sourceId?: string | null;
   /// 用户自己写的简介（一句话）。人工来源，不基于原文。
   description: string | null;
   /// 来源仓库的 owner / name。
