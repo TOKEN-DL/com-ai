@@ -13,6 +13,25 @@ import type { ReportStatus } from "@prisma/client";
 // 运营入口要实时读库，不许被静态化。
 export const dynamic = "force-dynamic";
 
+/** 合法的举报状态（查询参数用；`all` 表示不过滤）。 */
+const REPORT_STATUSES: readonly ReportStatus[] = ["OPEN", "RESOLVED", "DISMISSED"];
+
+/**
+ * 解析状态查询参数。
+ *
+ * 默认只看待处理（OPEN）；`status=all` 看全部；非法值回落到默认 ——
+ * 拼错的查询参数不该变成 500。
+ */
+function parseStatus(value: string | null): ReportStatus | undefined {
+  if (value === null) {
+    return "OPEN";
+  }
+  if (value === "all") {
+    return undefined;
+  }
+  return REPORT_STATUSES.includes(value as ReportStatus) ? (value as ReportStatus) : "OPEN";
+}
+
 /** 运营看到的举报列表。 */
 export async function GET(request: Request): Promise<Response> {
   const resolved = await resolveOperator(request);
@@ -20,11 +39,7 @@ export async function GET(request: Request): Promise<Response> {
     return resolved.response;
   }
 
-  const statusParam = new URL(request.url).searchParams.get("status");
-
-  // 默认只看待处理（OPEN）；`status=all` 看全部；否则按指定状态过滤。
-  const status: ReportStatus | undefined =
-    statusParam === null ? "OPEN" : statusParam === "all" ? undefined : (statusParam as ReportStatus);
+  const status = parseStatus(new URL(request.url).searchParams.get("status"));
 
   const items = await listReports({ status });
 

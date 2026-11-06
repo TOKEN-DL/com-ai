@@ -7,6 +7,7 @@ import { listAssetComments } from "@/lib/comments";
 import { CopyButton } from "./CopyButton";
 import { CommentsSection } from "./CommentsSection";
 import { InteractionButtons } from "./InteractionButtons";
+import { ReportButton } from "./ReportButton";
 
 // 详情要实时读库，不许被静态化。
 export const dynamic = "force-dynamic";
@@ -127,6 +128,11 @@ export default async function SkillDetailPage({
 
           <dt>采集源</dt>
           <dd>{skill.sourceId ?? "—"}</dd>
+
+          <dt>举报</dt>
+          <dd>
+            <ReportButton target="ASSET" slug={skill.slug} />
+          </dd>
         </dl>
       </section>
 

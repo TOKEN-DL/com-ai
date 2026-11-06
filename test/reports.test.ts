@@ -128,6 +128,41 @@ describe("举报落库", () => {
     expect(await prisma.report.count()).toBe(0);
   });
 
+  it("可以举报资产（按 slug）", async () => {
+    await seedAsset();
+    const user = await seedUser("assetreporter@example.com");
+
+    const response = await postReport(
+      request("http://localhost/api/reports", {
+        method: "POST",
+        body: JSON.stringify({ target: "ASSET", slug: SLUG, reason: "COPYRIGHT" }),
+        token: user.token,
+      }),
+    );
+
+    expect(response.status).toBe(201);
+
+    const rows = await prisma.report.findMany();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].target).toBe("ASSET");
+    expect(rows[0].assetId).not.toBeNull();
+    expect(rows[0].commentId).toBeNull();
+  });
+
+  it("举报不存在的资产返回 404", async () => {
+    await seedAsset();
+
+    const response = await postReport(
+      request("http://localhost/api/reports", {
+        method: "POST",
+        body: JSON.stringify({ target: "ASSET", slug: "nope", reason: "SPAM" }),
+      }),
+    );
+
+    expect(response.status).toBe(404);
+    expect(await prisma.report.count()).toBe(0);
+  });
+
   it("同一用户重复举报同一条评论不会产生第二条待处理举报", async () => {
     await seedAsset();
     const user = await seedUser("dup@example.com");

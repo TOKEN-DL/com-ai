@@ -60,7 +60,16 @@ export async function POST(request: Request): Promise<Response> {
     commentId = typeof payload.commentId === "string" ? payload.commentId : null;
   } else if (typeof payload.slug === "string" && payload.slug.length > 0) {
     const asset = await getAssetBySlug(payload.slug);
-    assetId = asset?.id ?? null;
+
+    // slug 给了但查不到 → 404（与「举报一条不存在的评论」同一个口径）。
+    if (!asset) {
+      return NextResponse.json(
+        { error: "asset_not_found", message: "要举报的资产不存在。" },
+        { status: 404 },
+      );
+    }
+
+    assetId = asset.id;
   } else if (typeof payload.assetId === "string" && payload.assetId.length > 0) {
     assetId = payload.assetId;
   }

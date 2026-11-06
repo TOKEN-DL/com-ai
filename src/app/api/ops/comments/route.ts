@@ -15,6 +15,22 @@ import type { CommentStatus } from "@prisma/client";
 // 运营入口要实时读库，不许被静态化。
 export const dynamic = "force-dynamic";
 
+/** 合法的评论状态（查询参数用；`all` 表示不过滤）。 */
+const COMMENT_STATUSES: readonly CommentStatus[] = ["VISIBLE", "PENDING", "HIDDEN", "DELETED"];
+
+/**
+ * 解析状态查询参数。
+ *
+ * 非法值当作「不过滤」而不是直接丢给 Prisma —— 后者会拿非法枚举值去查库
+ * 然后抛错，把一个拼错的查询参数变成 500。
+ */
+function parseStatus(value: string | null): CommentStatus | undefined {
+  if (value === null || value === "all") {
+    return undefined;
+  }
+  return COMMENT_STATUSES.includes(value as CommentStatus) ? (value as CommentStatus) : undefined;
+}
+
 /** 运营抽查：近期评论。 */
 export async function GET(request: Request): Promise<Response> {
   const resolved = await resolveOperator(request);
@@ -27,9 +43,7 @@ export async function GET(request: Request): Promise<Response> {
   const daysParam = Number.parseInt(search.get("days") ?? "7", 10);
   const days = Number.isFinite(daysParam) && daysParam > 0 ? daysParam : 7;
 
-  const statusParam = search.get("status");
-  const status: CommentStatus | undefined =
-    statusParam && statusParam !== "all" ? (statusParam as CommentStatus) : undefined;
+  const status = parseStatus(search.get("status"));
 
   const items = await listRecentComments({ days, status });
 
