@@ -343,7 +343,7 @@ export class McpRegistryAdapter implements SourceAdapter<McpRegistrySourceConfig
           license: null,
           repoOwner: owner ?? "",
           repoName: repoName ?? "",
-          repoUrl: server.repository?.url ?? null,
+          repoUrl: server.repository?.url ?? "",
           upstreamUrl: server.websiteUrl ?? server.repository?.url ?? null,
           skillPath: "",
           extraFiles: [],
@@ -353,6 +353,8 @@ export class McpRegistryAdapter implements SourceAdapter<McpRegistrySourceConfig
           isOfficial: false,
           mcp: {
             serverName: server.name,
+            serverDescription: server.description ?? null,
+            repoPushedAt: repoStats?.pushedAt ?? null,
             serverVersion: server.version,
             transport,
             packages: (server.packages ?? []) as unknown[],

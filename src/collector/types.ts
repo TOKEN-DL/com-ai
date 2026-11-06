@@ -82,6 +82,10 @@ export type ExtraFile = {
 export type McpItemMetadata = {
   /** registry 里的原始 server 名（reverse-DNS，如 `io.github.owner/server`）。 */
   serverName: string;
+  /** registry 给的原始描述（详情页展示，不进可检索字段）。 */
+  serverDescription: string | null;
+  /** 来源仓库最近一次推送的时间（GitHub 的 pushed_at）。 */
+  repoPushedAt: Date | null;
   /** 上游版本号（registry 的 `server.version`）。 */
   serverVersion: string;
   /** 传输方式：stdio / http / sse / unknown。 */

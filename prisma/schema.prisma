@@ -313,6 +313,13 @@ model McpDetail {
   asset   Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
   /// stdio / sse / http
   transport String?
+  /// registry 里的规范 server 名（reverse-DNS，如 "io.github.owner/server"）。
+  /// ⚠️ 与 `Asset.displayName`（展示名，可能是 registry 的 title）不是一回事。
+  serverName String?
+  /// registry 给的原始描述。详情页展示；**不进**可检索字段（METADATA_ONLY 档位）。
+  serverDescription String?
+  /// 来源仓库最近一次推送的时间（GitHub 的 pushed_at）。
+  repoPushedAt DateTime?
   /// 本地包声明，如 [{ name, version }]。
   packages Json?
   /// 远端 server 声明。

@@ -140,6 +140,19 @@ type BatchContext = {
 };
 
 /**
+ * 把一批拆成两半分别重查。
+ *
+ * 场景：限定符里的仓库必须存在，整批都不存在时 GitHub 返 422。
+ * 不拆的话，一个坏仓库会把同批的好仓库一起赔进去。
+ */
+async function splitBatch(batch: string[], context: BatchContext): Promise<Map<string, RepoStats>> {
+  const middle = Math.ceil(batch.length / 2);
+  const first = await fetchBatch(batch.slice(0, middle), context);
+  const second = await fetchBatch(batch.slice(middle), context);
+  return new Map([...first, ...second]);
+}
+
+/**
  * 查一批。整批返回 422 时（限定符里的仓库全都不存在）**二分拆开重查**，
  * 把还能查到的捞回来 —— 否则一个坏仓库会拖垮整批。
  */
@@ -158,13 +171,17 @@ async function fetchBatch(
   let payload: unknown;
   try {
     const response = await context.http(url, { headers: apiHeaders(context.token) });
+    // ⚠️ 注入的客户端可能不抛错（直接返回 422 响应），所以两条路都要处理。
+    if (!response.ok) {
+      if (response.status === 422 && batch.length > 1) {
+        return splitBatch(batch, context);
+      }
+      return out;
+    }
     payload = await response.json();
   } catch (error) {
     if (error instanceof HttpError && error.status === 422 && batch.length > 1) {
-      const middle = Math.ceil(batch.length / 2);
-      const first = await fetchBatch(batch.slice(0, middle), context);
-      const second = await fetchBatch(batch.slice(middle), context);
-      return new Map([...first, ...second]);
+      return splitBatch(batch, context);
     }
     // 其它错误（限流 / 网络）由 HTTP 客户端重试过一轮了，还失败就当这批没查到。
     return out;

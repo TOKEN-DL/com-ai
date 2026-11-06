@@ -28,6 +28,12 @@ export type SkillDetailInput = {
 
 export type McpDetailInput = {
   transport?: string | null;
+  /// registry 里的规范 server 名（reverse-DNS）。
+  serverName?: string | null;
+  /// registry 给的原始描述。
+  serverDescription?: string | null;
+  /// 来源仓库最近一次推送的时间。
+  repoPushedAt?: Date | null;
   packages?: Prisma.InputJsonValue | null;
   remotes?: Prisma.InputJsonValue | null;
   tools?: Prisma.InputJsonValue | null;
@@ -188,6 +194,9 @@ async function writeDetail(
     const mcp = detail.mcp;
     const data = {
       transport: mcp.transport ?? null,
+      serverName: mcp.serverName ?? null,
+      serverDescription: mcp.serverDescription ?? null,
+      repoPushedAt: mcp.repoPushedAt ?? null,
       packages: mcp.packages ?? undefined,
       remotes: mcp.remotes ?? undefined,
       tools: mcp.tools ?? undefined,

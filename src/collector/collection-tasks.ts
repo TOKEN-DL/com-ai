@@ -16,10 +16,15 @@ import { createCachingHttpClient, DEFAULT_CACHE_DIR, DEFAULT_CACHE_TTL_MS } from
 import { GitHubRepoAdapter } from "@/collector/github";
 import { createHttpClient } from "@/collector/http";
 import { ingestItems } from "@/collector/ingest";
+import { McpRegistryAdapter } from "@/collector/mcp-registry";
 import { runRetention } from "@/collector/retention";
 import { SkillsShAdapter } from "@/collector/skills-sh";
 import type { CollectionTaskResult } from "@/collector/collection-run";
-import type { GitHubRepoSourceConfig, SourceAdapter } from "@/collector/types";
+import type {
+  GitHubRepoSourceConfig,
+  McpRegistrySourceConfig,
+  SourceAdapter,
+} from "@/collector/types";
 
 /** 榜单：每天 03:17 跑一次（避开整点，错开别的服务）。 */
 export const LEADERBOARD_SCHEDULE = "17 3 * * *";
@@ -27,6 +32,8 @@ export const LEADERBOARD_SCHEDULE = "17 3 * * *";
 export const SITEMAP_SCHEDULE = "43 3 * * 1";
 /** 保留策略：每天 04:07 跑一次。 */
 export const RETENTION_SCHEDULE = "7 4 * * *";
+/** MCP 官方 registry：每天 05:23 跑一次。 */
+export const MCP_REGISTRY_SCHEDULE = "23 5 * * *";
 
 export type CollectionTaskDefinition = {
   /// 采集源标识（运行记录与告警都按它归集）。
@@ -56,6 +63,25 @@ export type BuildTasksOptions = {
   sitemapSchedule?: string;
   /// 保留策略的 cron 表达式。
   retentionSchedule?: string;
+  /// MCP 官方 registry 的 cron 表达式。
+  mcpSchedule?: string;
+  /**
+   * MCP 官方 registry 的适配器（测试可注入假实现）。
+   */
+  mcpAdapter?: SourceAdapter<McpRegistrySourceConfig>;
+  /**
+   * MCP 一轮最多采多少个 server。
+   *
+   * 默认 500 —— 验收标准要求站内至少 300 个 MCP server，
+   * 一轮采不满就下一轮接着采（slug 幂等，不会重复）。
+   */
+  mcpMaxServers?: number;
+  /**
+   * MCP 一轮最多探测多少个远程 server 的工具定义。
+   *
+   * 工具探测要跟每个 server 握一次手（慢），所以单独设个闸门。
+   */
+  mcpMaxToolProbes?: number;
   /**
    * 只采集不��库（命令行 `--dry-run` 用）。
    *
@@ -185,7 +211,62 @@ export function buildCollectionTasks(options: BuildTasksOptions = {}): Collectio
     createRetentionTask({
       schedule: options.retentionSchedule ?? resolveSchedule("CRON_RETENTION", RETENTION_SCHEDULE),
     }),
+    createMcpTask({
+      schedule:
+        options.mcpSchedule ?? resolveSchedule("CRON_MCP_REGISTRY", MCP_REGISTRY_SCHEDULE),
+      adapter: options.mcpAdapter,
+      maxServers: options.mcpMaxServers,
+      maxToolProbes: options.mcpMaxToolProbes,
+      dryRun: options.dryRun ?? false,
+    }),
   ];
+}
+
+/**
+ * MCP 官方 registry 的采集任务（票 #13）。
+ *
+ * 与技能侧的区别：registry 本身就是**权威来源**（免鉴权、字段最规整），
+ * 不需要「目录 → 回源」两段式；一轮直接把条目采全再入库。
+ *
+ * 工具探测（对每个远程 server 握一次 MCP 握手）是最慢的一步，
+ * 所以单独用 `mcpMaxToolProbes` 设闸门：超出的留到下一轮。
+ */
+function createMcpTask(options: {
+  schedule: string;
+  adapter?: SourceAdapter<McpRegistrySourceConfig>;
+  maxServers?: number;
+  maxToolProbes?: number;
+  dryRun: boolean;
+}): CollectionTaskDefinition {
+  return {
+    id: "mcp-registry:official",
+    sourceType: "mcp-registry",
+    schedule: options.schedule,
+    task: async (): Promise<CollectionTaskResult> => {
+      const adapter = options.adapter ?? new McpRegistryAdapter();
+      const result = await adapter.fetch({
+        type: "mcp-registry",
+        limit: 100,
+        ...(options.maxServers === undefined ? {} : { maxServers: options.maxServers }),
+        ...(options.maxToolProbes === undefined
+          ? {}
+          : { maxToolProbes: options.maxToolProbes }),
+      });
+
+      const ingested = options.dryRun
+        ? { written: 0, failed: 0 }
+        : await ingestItems(result.items);
+
+      return {
+        fetched: result.items.length,
+        written: ingested.written,
+        failed: ingested.failed,
+        failures: ingested.failed,
+        error:
+          result.error ?? (ingested.failed > 0 ? `${ingested.failed} 条入库失败` : undefined),
+      };
+    },
+  };
 }
 
 /**

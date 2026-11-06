@@ -128,7 +128,7 @@ describe("采集器合规护栏", () => {
     expect(violations).toEqual([]);
   });
 
-  it("采集器源码里出现的网络主机只有 GitHub 官方 API、raw 域、仓库页与 skills.sh 公开页", () => {
+  it("采集器源码里出现的网络主机只有 GitHub 官方 API、raw 域、仓库页、skills.sh 公开页与 MCP 官方 registry", () => {
     const allowedHosts = new Set([
       "api.github.com",
       "raw.githubusercontent.com",
@@ -137,6 +137,10 @@ describe("采集器合规护栏", () => {
       // skills.sh 只走公开页面路径（首页榜单 + sitemap）。
       // ⚠️ 它**不能**用来访问 /api/ —— 上面两条断言仍然拦着。
       "www.skills.sh",
+      // MCP 官方 registry（票 #13）：MCP 官方公开 API，免鉴权，
+      // 字段最规整（packages 的环境变量与运行时参数声明）。
+      // ⚠️ 只读公开的 /v0/ 列表端点；下面新增的断言把它钉死。
+      "registry.modelcontextprotocol.io",
     ]);
     const hosts = new Set<string>();
 
@@ -151,5 +155,27 @@ describe("采集器合规护栏", () => {
 
     const unexpected = [...hosts].filter((host) => !allowedHosts.has(host));
     expect(unexpected).toEqual([]);
+  });
+
+  it("MCP 官方 registry 只访问公开的 /v0/ 读端点", () => {
+    const violations: string[] = [];
+
+    for (const file of files) {
+      const source = readFileSync(file, "utf8");
+      for (const literal of extractStringLiterals(source)) {
+        for (const url of literal.match(/https?:\/\/[^\s"'`]+/gi) ?? []) {
+          if (!url.toLowerCase().startsWith("https://registry.modelcontextprotocol.io/")) {
+            continue;
+          }
+          const pathname = urlPath(url);
+          // 公开的读端点在 /v0/ 下（列表、版本、openapi）。
+          if (!pathname || !pathname.startsWith("/v0/")) {
+            violations.push(`${path.relative(REPO_ROOT, file)}：${url}`);
+          }
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
   });
 });

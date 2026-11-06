@@ -18,6 +18,9 @@ type CopyButtonProps = {
  *
  * 优先用 `navigator.clipboard`；非安全上下文（http 且非 localhost）下退回
  * `document.execCommand("copy")`。
+ *
+ * ⚠️ 放在 `src/app/` 根下而不是某个详情页目录里：Skill 详情页与 MCP 详情页
+ *    都要用它（一键复制安装命令 / 一键复制 mcpServers 配置片段）。
  */
 export function CopyButton({ value, label = "复制" }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);

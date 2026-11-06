@@ -120,7 +120,7 @@ function toMcpAssetWriteInput(item: RawItem): Parameters<typeof writeAsset>[0] {
     summarySource: "TEMPLATE",
     repoOwner: item.metadata.repoOwner || null,
     repoName: item.metadata.repoName || null,
-    repoUrl: item.metadata.repoUrl,
+    repoUrl: item.metadata.repoUrl || null,
     upstreamUrl: item.metadata.upstreamUrl,
     sourceId: item.metadata.sourceId,
     publishedAt: item.publishedAt ?? null,
@@ -132,6 +132,9 @@ function toMcpAssetWriteInput(item: RawItem): Parameters<typeof writeAsset>[0] {
     detail: {
       mcp: {
         transport: mcp?.transport ?? null,
+        serverName: mcp?.serverName ?? null,
+        serverDescription: mcp?.serverDescription ?? null,
+        repoPushedAt: mcp?.repoPushedAt ?? null,
         packages: (mcp?.packages ?? []) as unknown as Prisma.InputJsonValue,
         remotes: (mcp?.remotes ?? []) as unknown as Prisma.InputJsonValue,
         tools: mcp?.tools ? (mcp.tools as unknown as Prisma.InputJsonValue) : undefined,

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getSkillDetail } from "@/lib/asset-detail";
 
-import { CopyButton } from "./CopyButton";
+import { CopyButton } from "@/app/CopyButton";
 import { InteractionButtons } from "./InteractionButtons";
 
 // 详情要实时读库，不许被静态化。
