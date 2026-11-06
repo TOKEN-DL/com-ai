@@ -152,6 +152,17 @@ model Asset {
   /// 中文简介。LLM 生成时必须标注「AI 生成，版权归原作者」（spec 约束 2）。
   summaryZh String?
   summarySource SummarySource?
+  /// 「何时用」——什么时候该用它（票 #7）。
+  ///
+  /// 存在主表而不是只放 SkillDetail：搜索结果项也要展示它，
+  /// 而检索层只查主表（加 JOIN 会与 Asset_fulltext_idx 的表达式打架）。
+  whenToUse String?
+  /// 「怎么用」——装上之后怎么用（票 #7）。
+  howToUse String?
+  /// 人工覆盖时间。**非空 = 这条简介是人写的**，批量重跑必须跳过它。
+  summaryOverriddenAt DateTime?
+  /// 人工覆盖人（userId）。留空表示覆盖人已注销 / 无法追溯。
+  summaryOverriddenBy String?
   /// 来源仓库（GitHub）。
   repoOwner String?
   repoName  String?
@@ -212,6 +223,43 @@ model Asset {
   @@index([repoOwner, repoName])
   @@index([archivedAt])
   @@map("Asset")
+}
+
+/// 中文简介的生成缓存（票 #7「按内容 hash 缓存，避免对同一内容重复生成」）。
+///
+/// ## 为什么单独一张表，而不是复用 AssetVersion.contentHash
+///
+/// `AssetVersion` 记的是「某个上游 commit 对应哪一版内容」——它是**版本历史**，
+/// 键是 (assetId, version)。而简介缓存的键是「**同一份内容**」：
+/// 同一份 SKILL.md 被两个仓库收录、或者同一份内容改了名字重新入库，
+/// 生成出来的简介应该是一样的，不该重复调模型。
+///
+/// 所以缓存的键是 **内容 hash + 生成器版本**，与资产、与仓库都无关。
+/// 放 AssetVersion 上会退化成「按资产版本缓存」，
+/// 既挡不住「同一份内容换个来源重复生成」，也表达不了「模型/提示词变了要重跑」。
+model AssetSummaryCache {
+  id String @id @default(cuid())
+  /// 缓存键 = 生成器版本 + ":" + 内容 hash（见 src/lib/summary-service.ts）。
+  cacheKey String @unique
+  /// 内容 hash（SHA-256 十六进制）。
+  contentHash String
+  /// 生成器 / 提示词版本。模型或提示词一改，这个值就跟着改 → 缓存键变 → 批量重跑会重新生成。
+  generatorVersion String
+  /// 生成出来的那段中文简介。
+  summaryZh String
+  /// 「何时用」。
+  whenToUse String?
+  /// 「怎么用」。
+  howToUse String?
+  /// 分类标签建议。
+  tags String[] @default([])
+  /// 来源标记（落进缓存的初稿只可能是 LLM —— 模板降级不缓存）。
+  source SummarySource
+  createdAt DateTime @default(now())
+
+  @@index([contentHash])
+  @@index([generatorVersion])
+  @@map("AssetSummaryCache")
 }
 
 /// 采集源的一次运行记录（票 #6）。
