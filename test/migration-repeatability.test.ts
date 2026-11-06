@@ -10,6 +10,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -41,7 +42,20 @@ const EXPECTED_TABLES = [
   "Report",
   "UserPublishedAsset",
   "UserInstall",
+  // #6 的采集运维：运行记录与告警记录。
+  "CollectionRun",
+  "CollectionAlert",
 ];
+
+/**
+ * 仓库里有多少个迁移目录。
+ *
+ * 断言用「磁盘上的迁移数」而不是写死数字：新增迁移时这条断言不用跟着改，
+ * 但「迁移没有被重复应用」这件事照样被盯着。
+ */
+const MIGRATION_COUNT = readdirSync(path.join(repoRoot, "prisma", "migrations"), {
+  withFileTypes: true,
+}).filter((entry) => entry.isDirectory()).length;
 
 function randomDatabaseName(): string {
   return `t03_mig_${randomBytes(6).toString("hex")}`;
@@ -92,11 +106,11 @@ describe("迁移可在空库上成功执行，且可重复执行", () => {
           expect(names).toContain(table);
         }
 
-        // 迁移记录只有两条（#2 的 init + #3 的全量模型），没有被重复应用。
+        // 迁移记录条数 = 磁盘上的迁移数（每个迁移只应用了一次，没有被重复应用）。
         const migrations = await client.query<{ count: string }>(
           `SELECT COUNT(*)::text AS count FROM "_prisma_migrations"`,
         );
-        expect(migrations.rows[0]?.count).toBe("2");
+        expect(migrations.rows[0]?.count).toBe(String(MIGRATION_COUNT));
 
         // 许可证分层的强制执行确实挂上了（绕过服务层直接写库也拦得住）。
         const triggers = await client.query<{ tgname: string }>(
