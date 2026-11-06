@@ -1,0 +1,8 @@
+{
+  "sha": "shape-changed",
+  "url": "https://api.github.com/repos/vercel-labs/skills/git/trees/main",
+  "truncated": false,
+  "entries": [
+    { "path": "skills/find-skills/SKILL.md", "mode": "100644", "type": "blob", "sha": "zzz", "size": 5472 }
+  ]
+}

@@ -96,3 +96,172 @@ code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.9em;
 }
+
+/* ── Skill 列表页 ─────────────────────────────────────────────── */
+
+.asset-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.asset-list li {
+  border-bottom: 1px solid var(--line);
+  padding: 0.75rem 0;
+}
+
+.asset-list a {
+  font-weight: 600;
+  font-size: 1.05rem;
+  text-decoration: none;
+}
+
+.asset-list a:hover {
+  text-decoration: underline;
+}
+
+.asset-meta {
+  display: block;
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 0.15rem;
+}
+
+.asset-summary {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* ── Skill 详情页 ─────────────────────────────────────────────── */
+
+.skill-detail h2 {
+  font-size: 0.95rem;
+  margin: 1.75rem 0 0.5rem;
+  color: var(--muted);
+  text-transform: none;
+}
+
+.breadcrumb {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+}
+
+.summary p {
+  margin: 0;
+}
+
+.summary .original {
+  color: var(--muted);
+}
+
+.note {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 0.35rem !important;
+}
+
+.meta dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.4rem 1rem;
+  margin: 0;
+}
+
+.meta dt {
+  color: var(--muted);
+}
+
+.meta dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: baseline;
+}
+
+.license-badge {
+  border: 1px solid var(--ok);
+  color: var(--ok);
+  border-radius: 0.25rem;
+  padding: 0 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.badge-muted {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.install-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.install-list li {
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.install-head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.muted-code {
+  color: var(--muted);
+}
+
+.command,
+.skill-source {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.source-head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.file-list li {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.2rem 0;
+}
+
+.copy-button {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.copy-button:hover {
+  border-color: var(--muted);
+}
