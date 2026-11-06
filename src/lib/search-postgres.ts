@@ -241,9 +241,19 @@ function buildFilterClause(
   return Prisma.sql`(${Prisma.join(parts, " AND ")})`;
 }
 
-/** 整条查询的 WHERE：归档过滤 + 标签矩阵 + 关键词命中。 */
+/**
+ * 整条查询的 WHERE：归档过滤 + 下架过滤 + 标签矩阵 + 关键词命中。
+ *
+ * 「下架过滤」是票 #11 带来的：用户发布的资产被审核下架（审核中 / 已拒绝）后
+ * 不该再出现在搜索结果里 —— 与 listAssets / getAssetBySlug 同一条口径。
+ * 没有发布记录的资产（采集来的）不受这条限制影响。
+ */
 function buildWhereClause(normalized: NormalizedQuery, skip?: FilterDimension): Prisma.Sql {
   return Prisma.sql`"archivedAt" IS NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM "UserPublishedAsset" upa
+      WHERE upa."assetId" = "Asset"."id" AND upa."status" <> 'PUBLISHED'
+    )
     AND ${buildFilterClause(normalized.filters, skip)}
     AND ${buildMatchClause(normalized.q)}`;
 }
