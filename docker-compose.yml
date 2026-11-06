@@ -1,0 +1,160 @@
+# docker-compose.yml —— 一条命令起全套服务。
+#
+#     docker compose up -d --build
+#
+# 起来之后：
+#   应用首页     http://localhost:${HTTP_PORT:-8080}
+#   应用直连     http://localhost:${APP_PORT:-3000}
+#   开发库       localhost:${POSTGRES_PORT:-5432}
+#   测试库       localhost:${TEST_POSTGRES_PORT:-5433}
+#
+# 凭据一律经环境变量注入：这里给的是**开发默认值**，可用 .env 覆盖
+# （模板见 .env.example）。真实口令 / 令牌不要提交进仓库。
+#
+# 说明：compose project 名固定为 com-ai，因此所有 worktree 共用同一套容器。
+# 并行实施时直接连已经在跑的 postgres-test 容器即可，不要重复 up 抢端口。
+
+name: com-ai
+
+x-app-db-url: &app-db-url "postgresql://${POSTGRES_USER:-comai}:${POSTGRES_PASSWORD:-comai_dev_password}@postgres:5432/${POSTGRES_DB:-comai}"
+
+services:
+  # ─── 开发库 ──────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: com-ai-postgres
+    restart: unless-stopped
+    # 官方镜像内的 postgres 用户就是 70:70；显式声明避免以 root 跑数据库。
+    user: "70:70"
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-comai}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-comai_dev_password}"
+      POSTGRES_DB: "${POSTGRES_DB:-comai}"
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # 具名卷：容器重建 / 重启后数据仍在。
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ─── 测试库 ──────────────────────────────────────────────────────
+  # vitest harness 用它派生每次运行唯一的独立数据库（test_<random>），
+  # 跑完删除。全文检索与 trigram 的行为必须在真实 Postgres 上验证，不用内存替身。
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: com-ai-postgres-test
+    restart: unless-stopped
+    # 与上面的 postgres 服务同一个镜像：postgres 用户是 70:70，不是 999。
+    user: "70:70"
+    environment:
+      POSTGRES_USER: "${TEST_POSTGRES_USER:-comai}"
+      POSTGRES_PASSWORD: "${TEST_POSTGRES_PASSWORD:-comai_test_password}"
+      POSTGRES_DB: "${TEST_POSTGRES_DB:-comai_test}"
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "${TEST_POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres-test-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${TEST_POSTGRES_USER:-comai} -d $${TEST_POSTGRES_DB:-comai_test}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ─── 一次性迁移 ──────────────────────────────────────────────────
+  # 迁移跑在独立的一次性容器里，app / cron 等它成功退出后再启动。
+  migrate:
+    build:
+      context: .
+      target: migrate
+    container_name: com-ai-migrate
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: *app-db-url
+    command: ["sh", "-c", "node_modules/.bin/prisma migrate deploy"]
+
+  # ─── 应用服务 ────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      target: runner
+    image: com-ai-app:latest
+    container_name: com-ai-app
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      DATABASE_URL: *app-db-url
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  # ─── 定时任务容器 ────────────────────────────────────────────────
+  # 与应用同镜像同语言同进程栈，独立跑 node-cron 调度。
+  cron:
+    build:
+      context: .
+      target: worker
+    image: com-ai-worker:latest
+    container_name: com-ai-cron
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: *app-db-url
+      WORKER_PORT: "3001"
+      # 骨架调度表达式；采集管道（#6）接入时按源拆成多个独立 cron。
+      CRON_SCHEDULE: "${CRON_SCHEDULE:-0 * * * *}"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3001/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  # ─── 反向代理 ────────────────────────────────────────────────────
+  # Caddy 以非 root 运行（官方镜像没有非 root 用户，Dockerfile 里补了一个），
+  # 容器内监听 8080（免 root 端口），宿主机端口可配。
+  caddy:
+    build:
+      context: .
+      target: caddy
+    image: com-ai-caddy:latest
+    container_name: com-ai-caddy
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  postgres-data:
+  postgres-test-data:
+  caddy-data:
+  caddy-config:

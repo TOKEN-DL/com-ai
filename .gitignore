@@ -1,0 +1,32 @@
+# 依赖
+node_modules/
+
+# 构建产物
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+# Next.js 自动生成，不提交
+next-env.d.ts
+
+# 环境变量与密钥：绝不提交
+.env
+.env.*
+!.env.example
+
+# 测试与工具缓存
+coverage/
+.vitest/
+.eslintcache
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
+npm-debug.log*
+pnpm-debug.log*
