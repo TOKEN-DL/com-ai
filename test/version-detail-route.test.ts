@@ -466,7 +466,8 @@ describe("更新后详情页展示新版本内容", () => {
     expect(await prisma.assetVersion.count({ where: { assetId } })).toBe(1);
   });
 
-  it("上游取不到时不写版本行（不误报有更新）", async () => {    const assetId = await seedUpstreamSkill("sync-unavailable-skill");
+  it("上游取不到时不写版本行（不误报有更新）", async () => {
+    const assetId = await seedUpstreamSkill("sync-unavailable-skill");
     const asset = await prisma.asset.findUniqueOrThrow({ where: { id: assetId } });
 
     const outcome = await syncAssetVersion(
@@ -686,6 +687,55 @@ describe("收藏的资产出现新版本时的更新提示", () => {
       "1.0.0",
       "1.1.0",
     ]);
+  });
+
+  it("重复发布同一个版本号：版本表不重复，版本号不被抹掉", async () => {
+    setSummaryGenerator({
+      async generate() {
+        return {
+          summaryZh: "AI 写的中文简介。",
+          whenToUse: null,
+          howToUse: null,
+          tags: [],
+          source: "LLM",
+        };
+      },
+    } satisfies SummaryGenerator);
+
+    const user = await prisma.user.create({
+      data: { email: "republish@example.com", emailVerifiedAt: new Date() },
+    });
+    const { token } = await createSession({ userId: user.id });
+
+    const publish = async (version: string | null) =>
+      publishRoute(
+        jsonRequest(
+          "http://localhost/api/publish",
+          {
+            kind: "SKILL",
+            displayName: "demo",
+            repoUrl: "https://github.com/acme/republish-skills",
+            license: "MIT",
+            description: "平台发布的 demo。",
+            contentBody: NEW_BODY,
+            ...(version ? { version } : {}),
+          },
+          token,
+        ),
+      );
+
+    expect((await publish("1.0.0")).status).toBe(201);
+    expect((await publish("1.0.0")).status).toBe(201);
+    // 第三次不填版本号：版本号不该被抹掉。
+    expect((await publish(null)).status).toBe(201);
+    setSummaryGenerator(null);
+
+    const asset = await prisma.asset.findUniqueOrThrow({ where: { slug: "acme-republish-skills" } });
+    const rows = await prisma.assetVersion.findMany({ where: { assetId: asset.id } });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].version).toBe("1.0.0");
+    expect(asset.currentVersion).toBe("1.0.0");
   });
 
   it("不存在的 slug 返回 404", async () => {

@@ -326,7 +326,8 @@ export async function publishAsset(
     lastSyncedAt: new Date(),
     isOfficial: false,
     // 不传版本号 = 保留原来的版本号（重新发布不该把版本抹掉）。
-    currentVersion: input.version,
+    // 注意用 `?? undefined` 而不是 `?? null`：null 会被当成「显式清空」。
+    currentVersion: input.version ?? undefined,
     detail: buildDetail(kind, {
       displayName,
       description,
@@ -348,8 +349,9 @@ export async function publishAsset(
       status,
       filteredReason: filter.reason,
       reportedCount: 0,
-      // 二期（#16 / #17）预留字段：这一期只存不用。
-      latestVersion: input.version ?? null,
+      // #16 起这列真的会被消费（平台 semver 版本）。不填版本号 = 不动它，
+      // 重新发布不该把上次声明的版本抹掉。
+      latestVersion: input.version ?? undefined,
       manifestPath: input.manifestPath ?? null,
     },
     update: {
@@ -357,7 +359,7 @@ export async function publishAsset(
       status,
       filteredReason: filter.reason,
       // 审核意见**不清空** —— 发布者始终能看到运营最后一次的反馈。
-      latestVersion: input.version ?? null,
+      latestVersion: input.version ?? undefined,
       manifestPath: input.manifestPath ?? null,
     },
   });
