@@ -190,13 +190,19 @@ export function OpsReportsPanel() {
 
             {item.detail ? <p className="badge-muted">举报说明：{item.detail}</p> : null}
 
+            {item.target === "ASSET" ? (
+              <p className="badge-muted">
+                被举报的是资产：这里只关闭这条举报，资产是否下架由发布审核链路处理。
+              </p>
+            ) : null}
+
             <div className="comment-actions">
               <button
                 type="button"
                 className="interaction-button"
                 onClick={() => void act(item.id, "resolve")}
               >
-                举报成立（隐藏内容）
+                {item.target === "ASSET" ? "举报成立（关闭举报）" : "举报成立（隐藏评论）"}
               </button>
               <button
                 type="button"

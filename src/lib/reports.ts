@@ -271,8 +271,13 @@ export async function listReports(options: {
 /**
  * 处理一条举报。
  *
- * `RESOLVED`（举报成立）→ 被举报的评论置为 `HIDDEN`；
+ * `RESOLVED`（举报成立）→ 被举报的**评论**置为 `HIDDEN`；
  * `DISMISSED`（举报不成立）→ 内容保持原样。
+ *
+ * ⚠️ 被举报对象是**资产**时，这里只关闭举报记录，不动资产本身：
+ *    资产的下架 / 恢复属于发布审核链路（票 #11 的 `publish-moderation`），
+ *    它管的是 `UserPublishedAsset.status`。两条链路共用同一张 `Report` 表，
+ *    所以从哪边处理都会把举报置为 RESOLVED / DISMISSED。
  */
 export async function resolveReport(
   reportId: string,
@@ -297,10 +302,15 @@ export async function resolveReport(
       where: { id: report.commentId },
       data: { status: "HIDDEN" },
     });
+
+    return { ok: true, message: "举报已处理，评论已隐藏。" };
   }
 
   return {
     ok: true,
-    message: status === "RESOLVED" ? "举报已处理，内容已隐藏。" : "举报已驳回，内容保持可见。",
+    message:
+      status === "RESOLVED"
+        ? "举报已关闭。资产是否下架由发布审核链路处理。"
+        : "举报已驳回，内容保持可见。",
   };
 }
