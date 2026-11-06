@@ -332,6 +332,43 @@ model Session {
   @@map("Session")
 }
 
+/// 登录令牌用途：邮箱魔法链接 / GitHub OAuth 的 state。
+enum LoginTokenPurpose {
+  /// 邮箱魔法链接（spec 决策 10 的主登录方式）。
+  EMAIL_MAGIC
+  /// GitHub OAuth 的 state 参数（备选登录方式）。
+  GITHUB_OAUTH
+}
+
+/// 一次性登录令牌。邮箱魔法链接与 GitHub OAuth 的 state 共用这张表。
+///
+/// 三条硬规矩：
+///   1. **只存哈希**：明文令牌只在生成那一次出现在内存与链接里，落库的是 SHA-256；
+///   2. **一次性**：用掉就写上 usedAt，之后再拿同一个令牌来一律拒绝；
+///   3. **有有效期**：expiresAt 过了就拒绝（令牌本身不失效，但没人能拿它换到会话）。
+///
+/// 这张表同时是「请求登录链接」的限流账本：窗口内发了多少条，按 email / ipHash 数它自己。
+model LoginToken {
+  id String @id @default(cuid())
+  /// 只存令牌哈希，不存明文。
+  tokenHash String @unique
+  purpose LoginTokenPurpose
+  /// 目标邮箱（EMAIL_MAGIC 必填；GITHUB_OAUTH 留空 —— 回调时才知道邮箱）。
+  email String?
+  /// 过期时刻。过期的令牌一律拒绝。
+  expiresAt DateTime
+  /// 一次性：用掉就写上时间戳。
+  usedAt DateTime?
+  /// IP 哈希（限流与审计用，**不存明文 IP**）。
+  ipHash String?
+  createdAt DateTime @default(now())
+
+  @@index([purpose, email])
+  @@index([ipHash, createdAt])
+  @@index([expiresAt])
+  @@map("LoginToken")
+}
+
 /// 收藏。游客态用设备指纹（哈希后的 deviceId），登录后合并到账号。
 /// 三种 kind 的资产共用这一张表 —— 收藏挂在 Asset 上，不按 kind 分表。
 model Favorite {

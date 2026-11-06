@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { AuthNav } from "./AuthNav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,7 +13,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="zh-CN">
-      <body>{children}</body>
+      <body>
+        <AuthNav />
+        {children}
+      </body>
     </html>
   );
 }
