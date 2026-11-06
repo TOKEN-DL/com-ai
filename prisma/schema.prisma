@@ -425,11 +425,14 @@ model Favorite {
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// 游客态设备指纹（哈希后）。
   deviceId String?
+  /// 游客态限流用的 IP 哈希（**不存明文 IP**）。登录态为 null。
+  ipHash String?
   createdAt DateTime @default(now())
 
   @@unique([assetId, actorKey])
   @@index([userId])
   @@index([deviceId])
+  @@index([assetId, ipHash, createdAt])
   @@map("Favorite")
 }
 
@@ -442,11 +445,14 @@ model Like {
   userId String?
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
   deviceId String?
+  /// 游客态限流用的 IP 哈希（**不存明文 IP**）。登录态为 null。
+  ipHash String?
   createdAt DateTime @default(now())
 
   @@unique([assetId, actorKey])
   @@index([userId])
   @@index([deviceId])
+  @@index([assetId, ipHash, createdAt])
   @@map("Like")
 }
 

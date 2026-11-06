@@ -121,6 +121,9 @@ describe("迁移可在空库上成功执行，且可重复执行", () => {
         expect(triggerNames).toContain("AssetVersion_snapshot_guard");
         expect(triggerNames).toContain("PromptDetail_body_guard");
         expect(triggerNames).toContain("SkillDetail_summary_guard");
+        // 互动计数也由触发器维护（绕过服务层直接写库，计数也不漂移）。
+        expect(triggerNames).toContain("Favorite_asset_count_sync");
+        expect(triggerNames).toContain("Like_asset_count_sync");
       } finally {
         await client.end();
       }

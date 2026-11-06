@@ -265,3 +265,43 @@ code {
 .copy-button:hover {
   border-color: var(--muted);
 }
+
+/* ── 互动（点赞 / 收藏）───────────────────────────────────────────── */
+
+.interactions h2 {
+  font-size: 0.95rem;
+  margin: 1.5rem 0 0.5rem;
+  color: var(--muted);
+}
+
+.interaction-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.interaction-button {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.8rem;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.interaction-button:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.interaction-button[aria-pressed="true"] {
+  border-color: var(--ok);
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.interaction-button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}

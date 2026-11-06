@@ -8,12 +8,14 @@
  */
 import { describe, expect, it } from "vitest";
 
+import { GET as listAssetsBySlug } from "@/app/api/assets/route";
 import { GET } from "@/app/api/collector/health/route";
 import { getCollectionHealth, recordAlert } from "@/collector/alerts";
 import { runCollectionTask } from "@/collector/collection-run";
 import { runRetention } from "@/collector/retention";
 import { prisma } from "@/lib/prisma";
 import { writeAsset } from "@/lib/asset-writer";
+import { getAssetBySlug, listAssets } from "@/lib/asset-query";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -66,6 +68,29 @@ describe("三档保留策略", () => {
     const asset = await prisma.asset.findUnique({ where: { slug: "stale-hot" } });
     expect(asset).not.toBeNull();
     expect(asset?.archivedAt).not.toBeNull();
+  });
+
+  it("已归档的条目在所有前端取数路径上都不可见（列表 / 详情 / 批量 slug）", async () => {
+    await seedAsset({ slug: "archived-hidden", heatScore: 9, daysAgo: 90 });
+    await seedAsset({ slug: "still-hot", heatScore: 0.1, daysAgo: 1 });
+
+    await runRetention();
+
+    // 列表路径。
+    const listed = await listAssets({ limit: 100 });
+    expect(listed.map((asset) => asset.slug)).toContain("still-hot");
+    expect(listed.map((asset) => asset.slug)).not.toContain("archived-hidden");
+
+    // 详情路径。
+    expect(await getAssetBySlug("archived-hidden")).toBeNull();
+    expect(await getAssetBySlug("still-hot")).not.toBeNull();
+
+    // 批量 slug 路径（游客态「我的收藏」走这条）。
+    const response = await listAssetsBySlug(
+      new Request("http://localhost/api/assets?slugs=archived-hidden,still-hot"),
+    );
+    const body = (await response.json()) as { items: { slug: string }[] };
+    expect(body.items.map((item) => item.slug)).toEqual(["still-hot"]);
   });
 
   it("超期且低热度：物理删除", async () => {
