@@ -102,7 +102,7 @@ services:
     ports:
       - "${APP_PORT:-3000}:3000"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 30s
       timeout: 5s
       start_period: 20s
@@ -127,19 +127,22 @@ services:
       # 骨架调度表达式；采集管道（#6）接入时按源拆成多个独立 cron。
       CRON_SCHEDULE: "${CRON_SCHEDULE:-0 * * * *}"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/healthz"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3001/healthz"]
       interval: 30s
       timeout: 5s
       start_period: 10s
       retries: 3
 
   # ─── 反向代理 ────────────────────────────────────────────────────
-  # Caddy 以非 root 运行，容器内监听 8080（免 root 端口），宿主机端口可配。
+  # Caddy 以非 root 运行（官方镜像没有非 root 用户，Dockerfile 里补了一个），
+  # 容器内监听 8080（免 root 端口），宿主机端口可配。
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: .
+      target: caddy
+    image: com-ai-caddy:latest
     container_name: com-ai-caddy
     restart: unless-stopped
-    user: "caddy"
     depends_on:
       app:
         condition: service_healthy

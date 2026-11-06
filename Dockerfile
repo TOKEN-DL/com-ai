@@ -45,7 +45,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 USER nextjs
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/api/health || exit 1
 CMD ["node", "server.js"]
 
 # ─── worker（定时任务容器）────────────────────────────────────────
@@ -55,12 +55,22 @@ ENV WORKER_PORT=3001
 RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 worker
 WORKDIR /app
-COPY --from=builder --chown=worker:nodejs /app/dist/worker.cjs ./worker.cjs
+COPY --from=builder --chown=worker:nodejs /app/dist/worker.mjs ./worker.mjs
 USER worker
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/healthz || exit 1
-CMD ["node", "worker.cjs"]
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3001/healthz || exit 1
+CMD ["node", "worker.mjs"]
+
+# ─── caddy（反向代理，非 root）────────────────────────────────────
+# 官方 caddy:2-alpine 没有非 root 用户（默认以 root 跑），这里补一个，
+# 并把 /data、/config 交给它 —— 这两个目录是 Caddy 的 XDG 数据/配置目录。
+FROM caddy:2-alpine AS caddy
+RUN addgroup -g 1000 caddy \
+ && adduser -D -u 1000 -G caddy caddy \
+ && chown -R caddy:caddy /data /config
+USER caddy
+EXPOSE 8080
 
 # ─── migrate（一次性迁移容器）─────────────────────────────────────
 FROM deps AS migrate

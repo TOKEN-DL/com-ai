@@ -7,6 +7,8 @@ out/
 dist/
 build/
 *.tsbuildinfo
+# Next.js 自动生成，不提交
+next-env.d.ts
 
 # 环境变量与密钥：绝不提交
 .env
