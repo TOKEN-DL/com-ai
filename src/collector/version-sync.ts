@@ -238,7 +238,8 @@ export async function syncAssetVersion(
     version: head.sha,
     changelog: summary.text,
     contentUpdated,
-  };}
+  };
+}
 
 /**
  * 生成变更日志。
@@ -345,7 +346,10 @@ export async function syncUpstreamVersions(
       repoOwner: { not: null },
       repoName: { not: null },
     },
-    orderBy: { id: "asc" },
+    // **按上次同步时间排序**：从没同步过的先来，之后是最久没同步的。
+    // 这样「一轮只扫 N 个」（GitHub 配额有限）也能一轮一轮轮完所有资产，
+    // 不会永远只扫同一批。
+    orderBy: { lastSyncedAt: { sort: "asc", nulls: "first" } },
     take: deps.limit ?? 500,
     include: { skillDetail: true },
   });

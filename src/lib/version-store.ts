@@ -151,6 +151,68 @@ export type UpdateStatus = {
 };
 
 /**
+ * 批量取「收藏的资产有没有新版本」。
+ *
+ * 给「我的收藏」页用（登录用户的订阅式提示）：收藏列表里直接标出「有新版本」。
+ * 两次查询搞定（收藏行 + 版本行），不做 N+1。
+ */
+export type FavoritedUpdateFlag = {
+  /// 收藏之后有没有新版本。
+  hasUpdate: boolean;
+  /// 最新版本。
+  latestVersion: VersionView | null;
+};
+
+/**
+ * 批量取更新提示标记。
+ *
+ * @param assetIds 要判断的资产 id 列表。
+ * @param actor    当前主体（登录用户 / 游客设备指纹）。
+ */
+export async function listFavoritedUpdateFlags(
+  assetIds: string[],
+  actor: InteractionActor,
+): Promise<Map<string, FavoritedUpdateFlag>> {
+  const flags = new Map<string, FavoritedUpdateFlag>();
+  if (assetIds.length === 0) {
+    return flags;
+  }
+
+  const actorKey = actorKeyFor(actor);
+
+  const favorites = await prisma.favorite.findMany({
+    where: { assetId: { in: assetIds }, actorKey },
+    select: { assetId: true, createdAt: true },
+  });
+  if (favorites.length === 0) {
+    return flags;
+  }
+
+  const versions = await prisma.assetVersion.findMany({
+    where: { assetId: { in: assetIds } },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // 每个资产只留最新的一条版本行。
+  const latestByAsset = new Map<string, VersionRecord>();
+  for (const record of versions) {
+    if (!latestByAsset.has(record.assetId)) {
+      latestByAsset.set(record.assetId, record);
+    }
+  }
+
+  for (const favorite of favorites) {
+    const latest = latestByAsset.get(favorite.assetId) ?? null;
+    flags.set(favorite.assetId, {
+      hasUpdate: latest !== null && latest.createdAt.getTime() > favorite.createdAt.getTime(),
+      latestVersion: latest ? toVersionView(latest) : null,
+    });
+  }
+
+  return flags;
+}
+
+/**
  * 取某个主体对某个资产的更新提示。
  *
  * 主体认不出来（既没登录也没有设备指纹）时，返回「没收藏、没更新」——

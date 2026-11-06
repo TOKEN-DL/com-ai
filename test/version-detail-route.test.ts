@@ -15,11 +15,13 @@ import { describe, expect, it } from "vitest";
 
 import { GET as getVersions } from "@/app/api/assets/[slug]/versions/route";
 import { POST as favoriteRoute } from "@/app/api/assets/[slug]/favorite/route";
+import { GET as getFavorites } from "@/app/api/favorites/route";
 import { POST as publishRoute } from "@/app/api/publish/route";
 import { GET as getSkill } from "@/app/api/skills/[slug]/route";
 import SkillDetailPage from "@/app/skills/[slug]/page";
 import { syncAssetVersion, type UpstreamVersionSource } from "@/collector/version-sync";
 import { writeAsset } from "@/lib/asset-writer";
+import { hashDeviceId } from "@/lib/guest-identity";
 import { prisma } from "@/lib/prisma";
 import { createSession, SESSION_COOKIE } from "@/lib/session";
 import { setSummaryGenerator, type SummaryGenerator } from "@/lib/summary-generator";
@@ -126,6 +128,20 @@ async function seedUpstreamSkill(slug: string): Promise<string> {
   });
 
   return asset.id;
+}
+
+/**
+ * 把收藏行的时间往前挪一点。
+ *
+ * 判定「收藏之后有没有新版本」比的是两个时间戳，而 Postgres 的时间戳精度到毫秒 ——
+ * 收藏与版本落在同一毫秒时，先后次序是不确定的。测试里把前置条件写死，
+ * 免得这条用例偶尔红。
+ */
+async function backdateFavorite(assetId: string, actorKey: string): Promise<void> {
+  await prisma.favorite.updateMany({
+    where: { assetId, actorKey },
+    data: { createdAt: new Date(Date.now() - 60_000) },
+  });
 }
 
 describe("版本历史 —— 详情页可见（版本号 / 时间 / 变更摘要）", () => {
@@ -422,8 +438,35 @@ describe("更新后详情页展示新版本内容", () => {
     expect(row.snapshot).toBeNull();
   });
 
-  it("上游取不到时不写版本行（不误报有更新）", async () => {
-    const assetId = await seedUpstreamSkill("sync-unavailable-skill");
+  it("上游没有新 commit：不写新版本行（版本历史不重复）", async () => {
+    const assetId = await seedUpstreamSkill("sync-up-to-date-skill");
+    const asset = await prisma.asset.findUniqueOrThrow({ where: { id: assetId } });
+
+    await recordVersion({
+      assetId,
+      version: HEAD_SHA,
+      origin: "UPSTREAM",
+      changelog: "首次记录版本",
+    });
+
+    const outcome = await syncAssetVersion(
+      {
+        id: asset.id,
+        slug: asset.slug,
+        repoOwner: asset.repoOwner,
+        repoName: asset.repoName,
+        currentVersion: HEAD_SHA,
+        contentTier: asset.contentTier,
+        skillPath: "skills/demo/SKILL.md",
+      },
+      { source: fakeSource() },
+    );
+
+    expect(outcome.status).toBe("up-to-date");
+    expect(await prisma.assetVersion.count({ where: { assetId } })).toBe(1);
+  });
+
+  it("上游取不到时不写版本行（不误报有更新）", async () => {    const assetId = await seedUpstreamSkill("sync-unavailable-skill");
     const asset = await prisma.asset.findUniqueOrThrow({ where: { id: assetId } });
 
     const outcome = await syncAssetVersion(
@@ -471,6 +514,7 @@ describe("收藏的资产出现新版本时的更新提示", () => {
       origin: "UPSTREAM",
       changelog: "2 个文件变更（+24 / -4 行）",
     });
+    await backdateFavorite(assetId, `device:${hashDeviceId(DEVICE_A)}`);
 
     const after = await getVersions(
       withDevice(DEVICE_A, "http://localhost/api/assets/guest-update-notice-skill/versions"),
@@ -522,6 +566,7 @@ describe("收藏的资产出现新版本时的更新提示", () => {
       origin: "UPSTREAM",
       changelog: "2 个文件变更（+24 / -4 行）",
     });
+    await backdateFavorite(assetId, `user:${user.id}`);
 
     const response = await getVersions(
       withCookie(token, "http://localhost/api/assets/user-update-notice-skill/versions"),
@@ -538,6 +583,12 @@ describe("收藏的资产出现新版本时的更新提示", () => {
     const assetId = await seedUpstreamSkill("favorite-after-version-skill");
 
     await recordVersion({ assetId, version: HEAD_SHA, origin: "UPSTREAM", changelog: "有更新" });
+
+    // 把版本时间挪到收藏之前（毫秒精度下先后次序要写死）。
+    await prisma.assetVersion.updateMany({
+      where: { assetId },
+      data: { createdAt: new Date(Date.now() - 60_000) },
+    });
 
     await favoriteRoute(
       withDevice(DEVICE_A, "http://localhost/api/assets/favorite-after-version-skill/favorite"),
@@ -569,5 +620,137 @@ describe("收藏的资产出现新版本时的更新提示", () => {
     expect(body.update.favorited).toBe(false);
     expect(body.update.hasUpdate).toBe(false);
     expect(body.versions).toHaveLength(1);
+  });
+
+  it("用户发布的资产出了新版本：提示同样成立", async () => {
+    setSummaryGenerator({
+      async generate() {
+        return {
+          summaryZh: "AI 写的中文简介。",
+          whenToUse: null,
+          howToUse: null,
+          tags: [],
+          source: "LLM",
+        };
+      },
+    } satisfies SummaryGenerator);
+
+    const user = await prisma.user.create({
+      data: { email: "version-publisher@example.com", emailVerifiedAt: new Date() },
+    });
+    const { token } = await createSession({ userId: user.id });
+
+    const publish = async (version: string) =>
+      publishRoute(
+        jsonRequest(
+          "http://localhost/api/publish",
+          {
+            kind: "SKILL",
+            displayName: "demo",
+            repoUrl: "https://github.com/acme/platform-skills",
+            license: "MIT",
+            description: "平台发布的 demo。",
+            contentBody: NEW_BODY,
+            version,
+          },
+          token,
+        ),
+      );
+
+    expect((await publish("1.0.0")).status).toBe(201);
+
+    const asset = await prisma.asset.findUniqueOrThrow({ where: { slug: "acme-platform-skills" } });
+
+    await favoriteRoute(
+      withDevice(DEVICE_A, "http://localhost/api/assets/acme-platform-skills/favorite"),
+      { params: Promise.resolve({ slug: "acme-platform-skills" }) },
+    );
+    await backdateFavorite(asset.id, `device:${hashDeviceId(DEVICE_A)}`);
+
+    // 发布者又发了一版。
+    expect((await publish("1.1.0")).status).toBe(201);
+    setSummaryGenerator(null);
+
+    const response = await getVersions(
+      withDevice(DEVICE_A, "http://localhost/api/assets/acme-platform-skills/versions"),
+      { params: Promise.resolve({ slug: "acme-platform-skills" }) },
+    );
+    const body = await response.json();
+
+    expect(body.update.hasUpdate).toBe(true);
+    expect(body.update.latestVersion.version).toBe("1.1.0");
+    expect(body.update.latestVersion.origin).toBe("PLATFORM");
+    expect(body.update.latestVersion.originLabel).toBe("平台发布");
+    // 两个版本都在同一张表里。
+    expect(body.versions.map((version: { version: string }) => version.version).sort()).toEqual([
+      "1.0.0",
+      "1.1.0",
+    ]);
+  });
+
+  it("不存在的 slug 返回 404", async () => {
+    const response = await getVersions(
+      withDevice(DEVICE_A, "http://localhost/api/assets/not-there/versions"),
+      { params: Promise.resolve({ slug: "not-there" }) },
+    );
+
+    expect(response.status).toBe(404);
+  });
+});
+
+describe("登录用户的订阅式提示 —— 收藏列表里标出「有新版本」", () => {
+  it("收藏的资产出了新版本，收藏列表带上更新标记", async () => {
+    const assetId = await seedUpstreamSkill("favorites-list-update-skill");
+
+    const user = await prisma.user.create({
+      data: { email: "collector@example.com", emailVerifiedAt: new Date() },
+    });
+    const { token } = await createSession({ userId: user.id });
+
+    await favoriteRoute(
+      withCookie(token, "http://localhost/api/assets/favorites-list-update-skill/favorite"),
+      { params: Promise.resolve({ slug: "favorites-list-update-skill" }) },
+    );
+
+    await recordVersion({
+      assetId,
+      version: HEAD_SHA,
+      origin: "UPSTREAM",
+      changelog: "2 个文件变更（+24 / -4 行）",
+    });
+    await backdateFavorite(assetId, `user:${user.id}`);
+
+    const response = await getFavorites(
+      withCookie(token, "http://localhost/api/favorites"),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].slug).toBe("favorites-list-update-skill");
+    expect(body.items[0].hasUpdate).toBe(true);
+    expect(body.items[0].latestVersion.label).toBe("9f1c2b7");
+  });
+
+  it("没有新版本时不标更新", async () => {
+    await seedUpstreamSkill("favorites-list-no-update-skill");
+
+    const user = await prisma.user.create({
+      data: { email: "collector2@example.com", emailVerifiedAt: new Date() },
+    });
+    const { token } = await createSession({ userId: user.id });
+
+    await favoriteRoute(
+      withCookie(token, "http://localhost/api/assets/favorites-list-no-update-skill/favorite"),
+      { params: Promise.resolve({ slug: "favorites-list-no-update-skill" }) },
+    );
+
+    const response = await getFavorites(
+      withCookie(token, "http://localhost/api/favorites"),
+    );
+    const body = await response.json();
+
+    expect(body.items[0].hasUpdate).toBe(false);
+    expect(body.items[0].latestVersion).toBeNull();
   });
 });

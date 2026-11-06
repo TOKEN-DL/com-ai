@@ -291,6 +291,15 @@ code {
   margin-left: 0.4rem;
 }
 
+.update-badge {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--ok);
+  border-radius: 0.25rem;
+  color: var(--ok);
+  font-size: 0.85rem;
+}
+
 .copy-button {
   border: 1px solid var(--line);
   background: var(--bg);
