@@ -1,0 +1,81 @@
+// com-ai 数据模型 —— 统一资产主表 + 类型判别列（spec「Implementation Decisions」第 3 节）
+//
+// #2 只落「地基」：Asset 主表 + contentTier 枚举位 + 检索所需扩展。
+// 其余表（SkillDetail / McpDetail / PromptDetail / AssetVersion / AssetDependency /
+// Favorite / Like / Comment / User / Session ...）由 #3 一次建齐，本票不建。
+
+generator client {
+  provider = "prisma-client-js"
+  // 让迁移 SQL 里带上 CREATE EXTENSION pg_trgm（检索层依赖它）
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // 检索走 Postgres 全文 + pg_trgm（spec 约束 4：一期不用 pgvector / Redis）。
+  extensions = [pg_trgm]
+}
+
+/// 资产类型：跨类型搜索只查主表，类型差异字段放 1:1 扩展表。
+enum AssetKind {
+  SKILL
+  MCP
+  PROMPT
+}
+
+/// 内容档位（spec 约束 1：许可证分层必须在写入路径强制执行）。
+/// FULL = CC0/MIT/Apache 等允许再分发，可存正文、可生成简介；
+/// METADATA_ONLY = 无许可证或限制性许可证，只存元数据与链接，不复制原文。
+/// 写入路径的强制执行由 #3 的服务层负责；这里只把档位位留在主表上。
+enum ContentTier {
+  FULL
+  METADATA_ONLY
+}
+
+/// 简介来源：AI 生成 / 人工撰写 / 模板生成。
+enum SummarySource {
+  LLM
+  HUMAN
+  TEMPLATE
+}
+
+model Asset {
+  id   String    @id @default(cuid())
+  kind AssetKind
+  /// 全站唯一短名（URL 片段）。
+  slug String    @unique
+  /// 展示名（英文原文名）。
+  displayName String
+  /// 中文简介。LLM 生成时必须标注「AI 生成，版权归原作者」（spec 约束 2）。
+  summaryZh String?
+  summarySource SummarySource?
+  /// 来源仓库（GitHub）。
+  repoOwner String?
+  repoName  String?
+  repoUrl   String?
+  /// SPDX 许可证 id（如 MIT / Apache-2.0）；null = 未声明 → 只能是 METADATA_ONLY。
+  license String?
+  /// 内容档位。默认取最严格的 METADATA_ONLY，避免漏判许可证时误存正文。
+  contentTier ContentTier @default(METADATA_ONLY)
+  /// 上游原始地址（与 repoUrl 区分：repoUrl 指来源仓库，upstreamUrl 指资产本体）。
+  upstreamUrl String?
+  stars    Int   @default(0)
+  installs Int   @default(0)
+  /// 热度加权分（spec「纯函数单元测试」之一）。
+  heatScore Float @default(0)
+  /// 采集源标识（如 skills.sh / smithery）。
+  sourceId String?
+  publishedAt  DateTime?
+  lastSyncedAt DateTime?
+  /// 官方认证资产。
+  isOfficial Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kind])
+  @@index([contentTier])
+  @@index([heatScore])
+  @@index([sourceId])
+  @@map("Asset")
+}
