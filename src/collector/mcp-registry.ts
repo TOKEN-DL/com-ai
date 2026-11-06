@@ -288,7 +288,16 @@ export class McpRegistryAdapter implements SourceAdapter<McpRegistrySourceConfig
     const toolsByName = new Map<string, McpTool[] | null>();
     if (discoverTools) {
       const remoteEntries = entries.filter((entry) => (entry.server.remotes ?? []).length > 0);
-      const targets = remoteEntries.slice(0, maxToolProbes);
+      // ⚠️ registry 的条目**按名字排序**，固定探前 N 个的话，后面的 server
+      //    永远拿不到工具定义。所以探测窗口每天往前挪一格，
+      //    几天下来就能把这一批全覆盖（窗口 ≥ 远程 server 数时就是全覆盖）。
+      const window = Math.min(maxToolProbes, remoteEntries.length);
+      const dayIndex = Math.floor(Date.now() / 86_400_000);
+      const offset = window > 0 ? (dayIndex * window) % remoteEntries.length : 0;
+      const targets = [
+        ...remoteEntries.slice(offset, offset + window),
+        ...remoteEntries.slice(0, offset),
+      ].slice(0, window);
       let probed = 0;
       let succeeded = 0;
 
