@@ -11,6 +11,19 @@ import type { Asset, AssetKind, McpDetail, Prisma, PromptDetail, SkillDetail } f
 
 import { prisma } from "@/lib/prisma";
 
+/**
+ * 「对外可见」的过滤条件（票 #11）。
+ *
+ * 用户发布的资产被下架（审核中 PENDING / 已拒绝 REJECTED）时**不对外可见** ——
+ * 列表与详情都过滤掉，跟归档（archivedAt）一个口径。
+ *
+ * `every` 的语义：没有发布记录的资产（采集来的）条件天然成立 —— 采集来的条目
+ * 不走发布审核，不该被这条过滤误伤。
+ */
+export const VISIBLE_PUBLICATION_FILTER = {
+  publishedBy: { every: { status: "PUBLISHED" as const } },
+} satisfies Prisma.AssetWhereInput;
+
 export type AssetListOptions = {
   /// 不传 = 跨三种 kind；传了 = 只看这一类。
   kind?: AssetKind;
@@ -34,7 +47,8 @@ export async function listAssets(options: AssetListOptions = {}): Promise<Asset[
   return prisma.asset.findMany({
     // 已归档的条目**前端不可见**（spec 决策 4 的三档保留策略）：
     // 超期但高热度的资产保留在库里，只是不再展示。
-    where: { archivedAt: null, ...(kind ? { kind } : {}) },
+    // 被下架的用户发布（审核中 / 已拒绝）同样不可见（票 #11）。
+    where: { archivedAt: null, ...VISIBLE_PUBLICATION_FILTER, ...(kind ? { kind } : {}) },
     orderBy: orderByClause,
     take: limit,
     skip: offset,
@@ -51,7 +65,7 @@ export type AssetWithDetail = Asset & {
 /** 按 slug 取详情，并按 kind 带上对应的扩展表。 */
 export async function getAssetBySlug(slug: string): Promise<AssetWithDetail | null> {
   const asset = await prisma.asset.findFirst({
-    where: { slug, archivedAt: null },
+    where: { slug, archivedAt: null, ...VISIBLE_PUBLICATION_FILTER },
   });
   return asset ? withDetail(asset) : null;
 }
