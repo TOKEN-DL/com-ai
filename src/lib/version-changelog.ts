@@ -70,6 +70,12 @@ export type ChangelogSummary = {
 const MAX_LISTED_FILES = 5;
 /** 摘要里最多列出的提交条数。 */
 const MAX_LISTED_COMMITS = 3;
+/**
+ * GitHub Compare API 的硬上限（实测，见 .com-ai-context/verified-endpoints.md）：
+ * 一次对比最多返回 **250 条提交**与 **300 个文件**，超出的部分静默截断。
+ */
+const GITHUB_MAX_COMMITS = 250;
+const GITHUB_MAX_FILES = 300;
 
 /**
  * 把一次对比结果汇总成变更摘要。
@@ -102,6 +108,15 @@ function summarizeDiff(outcome: Extract<CompareOutcome, { kind: "diff" }>): Chan
 
   if (files.length > listedFiles.length) {
     lines.push(`另有 ${files.length - listedFiles.length} 个文件变更。`);
+  }
+
+  // GitHub 会静默截断提交（250 条）与文件（300 个）。摘要里说清楚，
+  // 别让人以为「就改了这么多」。
+  if (outcome.files.length >= GITHUB_MAX_FILES) {
+    lines.push(`（GitHub 最多返回 ${GITHUB_MAX_FILES} 个文件，更早的文件没列出来。）`);
+  }
+  if (outcome.aheadBy !== null && outcome.commits.length < outcome.aheadBy) {
+    lines.push(`（提交共 ${outcome.aheadBy} 条，GitHub 最多返回 ${GITHUB_MAX_COMMITS} 条。）`);
   }
 
   const commits = describeCommits(outcome.commits);
@@ -172,10 +187,14 @@ export function summarizeCommits(
 
 /**
  * 首次记录版本时的摘要（还没有「上一版」可比）。
+ *
+ * ⚠️ 站内此前的正文是采集器按**分支**取的，没有记录它对应哪个 commit，
+ *    所以第一次同步**没法**跟它做文件级比对 —— 这里说清楚，别让人误以为
+ *    「这一版跟之前一模一样」。
  */
 export function summarizeInitialVersion(version: string): ChangelogSummary {
   return {
-    text: `首次记录版本 ${version}。`,
+    text: `首次记录版本 ${version}。此前站内正文没有对应的 commit 记录，差异无法比对。`,
     filesChanged: 0,
     additions: 0,
     deletions: 0,

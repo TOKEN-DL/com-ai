@@ -55,6 +55,28 @@ describe("变更摘要 —— 有文件级差异", () => {
     expect(summary.text).toContain("skills/find-skills/README.md");
   });
 
+  it("GitHub 截断了提交与文件时说清楚（不假装列全了）", () => {
+    // 实测：一次 compare 最多返回 250 条提交、300 个文件，超出静默截断。
+    const files = Array.from({ length: 300 }, (_, index) => ({
+      filename: `skills/skill-${index}/SKILL.md`,
+      status: "modified",
+      additions: 1,
+      deletions: 0,
+      changes: 1,
+    }));
+
+    const summary = summarizeCompare({
+      kind: "diff",
+      aheadBy: 399,
+      totalCommits: 399,
+      files,
+      commits: [{ sha: "aaa1111", message: "chore: bump dependencies" }],
+    });
+
+    expect(summary.text).toContain("GitHub 最多返回 300 个文件");
+    expect(summary.text).toContain("提交共 399 条");
+  });
+
   it("提交只取标题（正文不进摘要）", () => {
     const summary = summarizeCompare(diffOutcome);
 
