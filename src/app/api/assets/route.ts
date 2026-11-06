@@ -24,7 +24,11 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json({ items: [] });
   }
 
-  const assets = await prisma.asset.findMany({ where: { slug: { in: slugs } } });
+  // 已归档的条目**前端不可见**（spec 决策 4 的三档保留策略）：
+  // 与 listAssets / getAssetBySlug 保持同一条口径。
+  const assets = await prisma.asset.findMany({
+    where: { slug: { in: slugs }, archivedAt: null },
+  });
   const bySlug = new Map(assets.map((asset) => [asset.slug, asset]));
 
   // 按请求里的顺序返回，页面上的顺序跟本地清单一致。

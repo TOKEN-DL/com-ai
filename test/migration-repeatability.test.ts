@@ -42,23 +42,23 @@ const EXPECTED_TABLES = [
   "Report",
   "UserPublishedAsset",
   "UserInstall",
+  // #6 的采集运维：运行记录与告警记录。
+  "CollectionRun",
+  "CollectionAlert",
 ];
+
+/**
+ * 仓库里有多少个迁移目录。
+ *
+ * 断言用「磁盘上的迁移数」而不是写死数字：新增迁移时这条断言不用跟着改，
+ * 但「迁移没有被重复应用」这件事照样被盯着。
+ */
+const MIGRATION_COUNT = readdirSync(path.join(repoRoot, "prisma", "migrations"), {
+  withFileTypes: true,
+}).filter((entry) => entry.isDirectory()).length;
 
 function randomDatabaseName(): string {
   return `t03_mig_${randomBytes(6).toString("hex")}`;
-}
-
-/**
- * 仓库里迁移目录的个数。
- *
- * 断言「迁移记录数 == 目录数」比写死数字更耐用：以后再加迁移，
- * 这个测试不用跟着改，但它依然能抓住「迁移被重复应用」。
- */
-function expectedMigrationCount(): number {
-  const migrationsDir = path.join(repoRoot, "prisma", "migrations");
-  return readdirSync(migrationsDir, { withFileTypes: true }).filter(
-    (entry) => entry.isDirectory(),
-  ).length;
 }
 
 function withDatabase(url: string, database: string): string {
@@ -106,11 +106,11 @@ describe("迁移可在空库上成功执行，且可重复执行", () => {
           expect(names).toContain(table);
         }
 
-        // 迁移记录数 = 仓库里迁移目录的个数：没有被重复应用。
+        // 迁移记录条数 = 磁盘上的迁移数（每个迁移只应用了一次，没有被重复应用）。
         const migrations = await client.query<{ count: string }>(
           `SELECT COUNT(*)::text AS count FROM "_prisma_migrations"`,
         );
-        expect(migrations.rows[0]?.count).toBe(String(expectedMigrationCount()));
+        expect(migrations.rows[0]?.count).toBe(String(MIGRATION_COUNT));
 
         // 许可证分层的强制执行确实挂上了（绕过服务层直接写库也拦得住）。
         const triggers = await client.query<{ tgname: string }>(

@@ -28,6 +28,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "collect:skills": "node scripts/collect-skills.mjs",
+    "collect:batch": "node scripts/collect-batch.mjs",
     "postinstall": "node scripts/postinstall.mjs",
     "compose:up": "docker compose up -d --build",
     "compose:down": "docker compose down",

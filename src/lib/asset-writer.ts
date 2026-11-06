@@ -115,6 +115,9 @@ export async function writeAsset(input: AssetWriteInput): Promise<Asset> {
     stars: input.stars ?? 0,
     installs: input.installs ?? 0,
     heatScore: input.heatScore ?? 0,
+    // 重新采集 = 重新变热：清掉归档标记（spec 决策 4 的三档保留策略）。
+    // 归档只由保留策略打上，也只由「重新采集」或「又变热」取消。
+    archivedAt: null,
   };
 
   return prisma.$transaction(async (tx) => {

@@ -28,8 +28,21 @@ export type GitHubRepoSourceConfig = {
   skillPath?: string;
 };
 
+/** skills.sh 目录来源配置（票 #6）。 */
+export type SkillsShSourceConfig = {
+  type: "skills-sh";
+  /**
+   * 目录来源：
+   *   - `leaderboard` —— 首页榜单（SSR 内嵌 `initialSkills`，带 installs 与 8 周趋势）；
+   *   - `sitemap` —— 站点地图（只有 owner/repo/skillId，没有热度）。
+   *
+   * 两个目录的节奏不同，所以是两个独立 cron，不是统一轮询。
+   */
+  catalog: "leaderboard" | "sitemap";
+};
+
 /** 采集源配置（判别联合）。新增采集源时在这里加一个成员即可。 */
-export type SourceConfig = GitHubRepoSourceConfig;
+export type SourceConfig = GitHubRepoSourceConfig | SkillsShSourceConfig;
 
 export type SourceType = SourceConfig["type"];
 
@@ -58,7 +71,8 @@ export type RawItemMetadata = {
   /// 来源仓库的网页地址。
   repoUrl: string;
   /// 资产本体（原始 SKILL.md）的地址。
-  upstreamUrl: string;
+  /// 目录来源（skills.sh）在回源之前不知道这条地址，所以是 null。
+  upstreamUrl: string | null;
   /// SKILL.md 在仓库内的相对路径。
   skillPath: string;
   /// 与 SKILL.md 同目录的附属文件清单。
@@ -67,6 +81,16 @@ export type RawItemMetadata = {
   installs: number;
   heatScore: number;
   isOfficial: boolean;
+  /**
+   * 目录来源给出的 skill 标识（skills.sh 的 `skillId`）。
+   * GitHub 回源时没有这个概念，所以是可选项。
+   */
+  skillId?: string | null;
+  /**
+   * 近 8 周的周安装量（skills.sh 榜单给的趋势数据）。
+   * 没有趋势数据时是空数组。
+   */
+  weeklyInstalls?: number[];
 };
 
 /** 规范化条目。 */
