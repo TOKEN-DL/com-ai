@@ -32,7 +32,9 @@ export async function listAssets(options: AssetListOptions = {}): Promise<Asset[
         : { heatScore: "desc" };
 
   return prisma.asset.findMany({
-    where: kind ? { kind } : undefined,
+    // 已归档的条目**前端不可见**（spec 决策 4 的三档保留策略）：
+    // 超期但高热度的资产保留在库里，只是不再展示。
+    where: { archivedAt: null, ...(kind ? { kind } : {}) },
     orderBy: orderByClause,
     take: limit,
     skip: offset,
@@ -48,13 +50,17 @@ export type AssetWithDetail = Asset & {
 
 /** 按 slug 取详情，并按 kind 带上对应的扩展表。 */
 export async function getAssetBySlug(slug: string): Promise<AssetWithDetail | null> {
-  const asset = await prisma.asset.findUnique({ where: { slug } });
+  const asset = await prisma.asset.findFirst({
+    where: { slug, archivedAt: null },
+  });
   return asset ? withDetail(asset) : null;
 }
 
 /** 按 id 取详情，并按 kind 带上对应的扩展表。 */
 export async function getAssetById(id: string): Promise<AssetWithDetail | null> {
-  const asset = await prisma.asset.findUnique({ where: { id } });
+  const asset = await prisma.asset.findFirst({
+    where: { id, archivedAt: null },
+  });
   return asset ? withDetail(asset) : null;
 }
 
