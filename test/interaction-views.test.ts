@@ -14,10 +14,12 @@ import { GET as getSkill } from "@/app/api/skills/[slug]/route";
 import { GET as listSkills } from "@/app/api/skills/route";
 import { mergeGuestInteractionsToUser } from "@/lib/interactions";
 import { prisma } from "@/lib/prisma";
-import { hashSessionToken, SESSION_COOKIE } from "@/lib/session";
+import { createSession, SESSION_COOKIE } from "@/lib/session";
 
 const DEVICE = "views-device-0001";
-const SESSION_TOKEN = "views-session-token-0001";
+
+/** 当前测试的会话令牌（#9 起会话由 `createSession` 签发 JWT，不再手工造行）。 */
+let sessionToken = "";
 
 async function seedSkill(slug: string): Promise<void> {
   await prisma.asset.create({
@@ -27,13 +29,8 @@ async function seedSkill(slug: string): Promise<void> {
 
 async function seedUser(email: string): Promise<string> {
   const user = await prisma.user.create({ data: { email, emailVerifiedAt: new Date() } });
-  await prisma.session.create({
-    data: {
-      userId: user.id,
-      tokenHash: hashSessionToken(SESSION_TOKEN),
-      expiresAt: new Date(Date.now() + 3600_000),
-    },
-  });
+  const session = await createSession({ userId: user.id });
+  sessionToken = session.token;
   return user.id;
 }
 
@@ -45,7 +42,7 @@ function guestRequest(path: string): Request {
 
 function sessionRequest(path: string): Request {
   return new Request(`http://localhost${path}`, {
-    headers: { cookie: `${SESSION_COOKIE}=${SESSION_TOKEN}` },
+    headers: { cookie: `${SESSION_COOKIE}=${sessionToken}` },
   });
 }
 

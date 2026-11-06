@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { toAssetListItem } from "@/lib/asset-item";
 import { listFavoritedAssets } from "@/lib/interactions";
-import { getSessionUser } from "@/lib/session";
+import { getSessionUser, unauthorizedResponse } from "@/lib/session";
 
 // 要实时读库，不许被静态化。
 export const dynamic = "force-dynamic";
@@ -16,10 +16,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request): Promise<Response> {
   const session = await getSessionUser(request);
   if (!session) {
-    return NextResponse.json(
-      { error: "unauthenticated", message: "请先登录后查看收藏。" },
-      { status: 401 },
-    );
+    return unauthorizedResponse("请先登录后查看收藏。");
   }
 
   const assets = await listFavoritedAssets({ userId: session.id });
