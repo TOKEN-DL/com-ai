@@ -80,6 +80,24 @@ enum CommentStatus {
   DELETED
 }
 
+/// 一次采集运行的结果（票 #6）。
+enum CollectionRunStatus {
+  /// 全部成功
+  OK
+  /// 部分子源失败
+  PARTIAL
+  /// 整批失败
+  FAILED
+}
+
+/// 采集告警的级别（票 #6）。
+enum CollectionAlertSeverity {
+  /// 需要人看一眼
+  WARNING
+  /// 采集已经不可用
+  ERROR
+}
+
 /// 举报对象类型。
 enum ReportTarget {
   ASSET
@@ -144,6 +162,11 @@ model Asset {
   lastSyncedAt DateTime?
   /// 官方认证资产。
   isOfficial Boolean @default(false)
+  /// 归档标记（spec 决策 4 的三档保留策略）：
+  ///   null = 热（在保留窗口期内，前端可见）；
+  ///   非空 = 归档（超期但高热度：**保留于库、前端隐藏**）。
+  /// 超期且低热度的条目由保留策略**物理删除**，不会留在这个状态。
+  archivedAt DateTime?
   /// 收藏数 / 点赞数（跨三种 kind 统一计数）。
   favoriteCount Int @default(0)
   likeCount     Int @default(0)
@@ -169,7 +192,64 @@ model Asset {
   @@index([sourceId])
   @@index([kind, heatScore])
   @@index([repoOwner, repoName])
+  @@index([archivedAt])
   @@map("Asset")
+}
+
+/// 采集源的一次运行记录（票 #6）。
+///
+/// 健康检查端点与「连续失败告警」都看这张表：不需要外部监控系统也能查到
+/// 「哪个源上次跑挂了、挂了几次」。
+model CollectionRun {
+  id String @id @default(cuid())
+  /// 采集源标识（配置级），如 "skills.sh:leaderboard"。
+  source String
+  /// 采集源类型（"skills-sh" / "github-repo"）。
+  sourceType String
+  /// 本次运行的结果。
+  status CollectionRunStatus
+  /// 采到的条目数。
+  fetched Int @default(0)
+  /// 入库成功条数。
+  written Int @default(0)
+  /// 入库失败条数。
+  failed Int @default(0)
+  /// 失败的子源（仓库）数量。
+  failures Int @default(0)
+  /// 失败原因摘要（人类可读）。
+  error String?
+  /// 本次运行耗时（毫秒）。
+  durationMs Int @default(0)
+  startedAt DateTime @default(now())
+  finishedAt DateTime?
+
+  @@index([source, startedAt])
+  @@map("CollectionRun")
+}
+
+/// 采集告警记录（票 #6）。
+///
+/// 解析器失效 / 源结构变更时落一条；健康检查端点把未确认的告警暴露出来。
+/// 不依赖任何需要凭据的外部通道（本机没有 SMTP / 钉钉 / 企微凭据）。
+model CollectionAlert {
+  id String @id @default(cuid())
+  /// 出问题的采集源标识。
+  source String
+  /// 告警级别。
+  severity CollectionAlertSeverity
+  /// 一句话说清出了什么事。
+  message String
+  /// 细节（错误信息 / 结构差异说明）。
+  detail String?
+  /// 触发时的连续失败次数。
+  occurrences Int @default(1)
+  createdAt DateTime @default(now())
+  /// 运维确认时间；null = 还没处理。
+  acknowledgedAt DateTime?
+
+  @@index([source, createdAt])
+  @@index([acknowledgedAt])
+  @@map("CollectionAlert")
 }
 
 /// 许可证 → 内容档位的映射表（唯一的事实来源之一，DB 触发器按它分流）。

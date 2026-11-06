@@ -203,7 +203,8 @@ async function listAssetsForActor(
   }
 
   const assets = await prisma.asset.findMany({
-    where: { id: { in: rows.map((row) => row.assetId) } },
+    // 已归档的条目前端不可见（spec 决策 4）。
+    where: { id: { in: rows.map((row) => row.assetId) }, archivedAt: null },
   });
   const byId = new Map(assets.map((asset) => [asset.id, asset]));
 

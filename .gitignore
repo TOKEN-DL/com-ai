@@ -20,6 +20,9 @@ coverage/
 .vitest/
 .eslintcache
 
+# 采集器的 HTTP 缓存（GitHub trees / raw 正文），可随时重建
+.cache/
+
 # 编辑器 / 系统
 .vscode/
 .idea/

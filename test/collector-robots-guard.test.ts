@@ -128,12 +128,15 @@ describe("采集器合规护栏", () => {
     expect(violations).toEqual([]);
   });
 
-  it("采集器源码里出现的网络主机只有 GitHub 官方 API、raw 域与仓库页", () => {
+  it("采集器源码里出现的网络主机只有 GitHub 官方 API、raw 域、仓库页与 skills.sh 公开页", () => {
     const allowedHosts = new Set([
       "api.github.com",
       "raw.githubusercontent.com",
       // 只作为「来源仓库链接」存进数据库，不发起请求。
       "github.com",
+      // skills.sh 只走公开页面路径（首页榜单 + sitemap）。
+      // ⚠️ 它**不能**用来访问 /api/ —— 上面两条断言仍然拦着。
+      "www.skills.sh",
     ]);
     const hosts = new Set<string>();
 
