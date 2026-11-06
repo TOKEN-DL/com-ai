@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 type OpsComment = {
   id: string;
@@ -28,6 +28,39 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 /**
+ * 取近期评论。
+ *
+ * 刻意**不碰组件状态**：取数与改状态分开，组件里所有 setState 都发生在
+ * `await` 之后（效果里直接 setState 会造成级联渲染）。
+ */
+async function fetchComments(window: number): Promise<{ items: OpsComment[]; error: string | null }> {
+  let response: Response;
+
+  try {
+    response = await fetch(`/api/ops/comments?days=${window}`, { cache: "no-store" });
+  } catch {
+    return { items: [], error: "网络不太顺，请稍后再试。" };
+  }
+
+  if (response.status === 401) {
+    return { items: [], error: "运营入口需要登录。" };
+  }
+  if (response.status === 403) {
+    return { items: [], error: "需要运营权限才能进入这个入口。" };
+  }
+  if (!response.ok) {
+    return { items: [], error: "加载失败，请稍后再试。" };
+  }
+
+  try {
+    const data = (await response.json()) as { items?: OpsComment[] };
+    return { items: Array.isArray(data?.items) ? data.items : [], error: null };
+  } catch {
+    return { items: [], error: "加载失败，请稍后再试。" };
+  }
+}
+
+/**
  * 抽查面板：从 `/api/ops/comments` 按时间拉近期评论。
  *
  * 权限由服务端判（MODERATOR / ADMIN）；这里只把「进不来」的原因显示出来。
@@ -39,40 +72,35 @@ export function OpsCommentsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const load = useCallback(async (window: number) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`/api/ops/comments?days=${window}`, { cache: "no-store" });
-
-      if (response.status === 401) {
-        setError("运营入口需要登录。");
-        setItems([]);
-        return;
-      }
-      if (response.status === 403) {
-        setError("需要运营权限才能进入这个入口。");
-        setItems([]);
-        return;
-      }
-      if (!response.ok) {
-        setError("加载失败，请稍后再试。");
-        return;
-      }
-
-      const data = (await response.json()) as { items?: OpsComment[] };
-      setItems(Array.isArray(data?.items) ? data.items : []);
-    } catch {
-      setError("网络不太顺，请稍后再试。");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    void load(days);
-  }, [days, load]);
+    let cancelled = false;
+
+    void (async () => {
+      const result = await fetchComments(days);
+      if (cancelled) {
+        return;
+      }
+      setItems(result.items);
+      setError(result.error);
+      setLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [days]);
+
+  const refresh = (window: number) => {
+    setLoading(true);
+    setNotice(null);
+
+    void (async () => {
+      const result = await fetchComments(window);
+      setItems(result.items);
+      setError(result.error);
+      setLoading(false);
+    })();
+  };
 
   const act = async (commentId: string, action: "approve" | "hide" | "restore") => {
     setNotice(null);
@@ -92,7 +120,10 @@ export function OpsCommentsPanel() {
       }
 
       setNotice(typeof data?.message === "string" ? data.message : "已更新。");
-      await load(days);
+
+      const result = await fetchComments(days);
+      setItems(result.items);
+      setError(result.error);
     } catch {
       setNotice("网络不太顺，请稍后再试。");
     }
@@ -108,12 +139,15 @@ export function OpsCommentsPanel() {
             type="button"
             className="interaction-button"
             aria-pressed={days === window}
-            onClick={() => setDays(window)}
+            onClick={() => {
+              setDays(window);
+              setLoading(true);
+            }}
           >
             最近 {window} 天
           </button>
         ))}
-        <button type="button" className="interaction-button" onClick={() => void load(days)}>
+        <button type="button" className="interaction-button" onClick={() => refresh(days)}>
           刷新
         </button>
       </div>

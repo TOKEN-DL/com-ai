@@ -377,3 +377,118 @@ code {
 .auth-panel-note p {
   margin: 0.35rem 0;
 }
+
+/* ── 评论与举报（票 #10）───────────────────────────────────────── */
+
+.comments h2 {
+  font-size: 0.95rem;
+  margin: 1.75rem 0 0.5rem;
+  color: var(--muted);
+}
+
+.comment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.comment-item {
+  border-bottom: 1px solid var(--line);
+  padding: 0.75rem 0;
+}
+
+.comment-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: baseline;
+  font-size: 0.85rem;
+}
+
+.comment-author {
+  font-weight: 600;
+}
+
+.comment-time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.comment-body {
+  margin: 0.35rem 0;
+  /* 正文里的换行要保留，所以用 pre-wrap 而不是默认的 normal。 */
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.comment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.35rem 0;
+}
+
+.comment-composer {
+  margin: 0.75rem 0;
+}
+
+.comment-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 0.4rem;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+
+.reply-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding-left: 1rem;
+  border-left: 2px solid var(--line);
+}
+
+.reply-item {
+  border-bottom: none;
+  padding: 0.5rem 0;
+}
+
+.report-wrap {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.report-field {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.report-field select,
+.report-field input {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 0.35rem;
+  padding: 0.25rem 0.4rem;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+/* ── 运营入口（票 #10）─────────────────────────────────────────── */
+
+.ops-panel {
+  margin-top: 1rem;
+}
+
+.ops-panel .comment-list {
+  margin-top: 1rem;
+}

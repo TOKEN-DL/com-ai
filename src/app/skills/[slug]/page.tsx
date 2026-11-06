@@ -2,8 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getSkillDetail } from "@/lib/asset-detail";
+import { listAssetComments } from "@/lib/comments";
 
 import { CopyButton } from "./CopyButton";
+import { CommentsSection } from "./CommentsSection";
 import { InteractionButtons } from "./InteractionButtons";
 
 // 详情要实时读库，不许被静态化。
@@ -32,6 +34,9 @@ export default async function SkillDetailPage({
 
   const repoLabel =
     skill.repoOwner && skill.repoName ? `${skill.repoOwner}/${skill.repoName}` : "未知来源";
+
+  // 评论与回复列表（spec 决策 9：详情页展示社区内容）。
+  const comments = await listAssetComments(skill.assetId);
 
   return (
     <main className="skill-detail">
@@ -183,6 +188,8 @@ export default async function SkillDetailPage({
           </p>
         )}
       </section>
+
+      <CommentsSection slug={skill.slug} comments={comments} />
     </main>
   );
 }

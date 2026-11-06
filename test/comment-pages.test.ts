@@ -50,6 +50,8 @@ describe("详情页展示评论与回复", () => {
   });
 
   it("待抽查与被隐藏的评论不展示在页面上", async () => {
+    await seedThread();
+
     const asset = await prisma.asset.findUniqueOrThrow({ where: { slug: SLUG } });
     const user = await prisma.user.findUniqueOrThrow({ where: { email: "page@example.com" } });
 
@@ -75,6 +77,8 @@ describe("详情页展示评论与回复", () => {
   });
 
   it("评论正文里的脚本标签被转义，不会作为标记出现在页面上", async () => {
+    await seedThread();
+
     const asset = await prisma.asset.findUniqueOrThrow({ where: { slug: SLUG } });
     const user = await prisma.user.findUniqueOrThrow({ where: { email: "page@example.com" } });
 
