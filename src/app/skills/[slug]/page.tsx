@@ -62,6 +62,17 @@ export default async function SkillDetailPage({
           {/* 「AI 生成，版权归原作者」/「人工撰写」/「模板生成」——
               来源必须标出来：读者才知道这段话能不能当真、该找谁问。 */}
           <SummarySourceNote source={skill.summarySource} />
+          {/* AI 生成的内容要能一键回到原文出处 —— 署名与原仓库链接放在一起，
+              读者不用往下翻就知道这段话依据的是哪份原文。 */}
+          {skill.summarySource === "LLM" && skill.repoUrl ? (
+            <p className="note">
+              原文与版权归属：{" "}
+              <a href={skill.repoUrl} rel="noreferrer noopener" target="_blank">
+                {repoLabel}
+              </a>
+              {skill.license ? ` · ${skill.license}` : ""}
+            </p>
+          ) : null}
         </section>
       ) : null}
 

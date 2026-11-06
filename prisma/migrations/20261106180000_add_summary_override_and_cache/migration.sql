@@ -45,6 +45,14 @@ CREATE INDEX "AssetSummaryCache_generatorVersion_idx" ON "AssetSummaryCache"("ge
 --   - METADATA_ONLY 档位不落「基于原文的内容」；
 --   - 「何时用 / 怎么用」按 spec 决策 7 也是由原文生成的 → 一并清空；
 --   - 例外：**人工撰写（HUMAN）保留** —— 那是人写的，不是原文摘抄。
+--
+-- 另外加一条**人工覆盖优先**的规则（票 #7）：
+-- 这条简介被人工改写过（OLD.summaryOverriddenAt 非空）时，
+-- 重新采集**不得**把它改回去。
+--
+-- 为什么放在触发器里而不是服务层：触发器在**同一次行更新里**判定，
+-- 没有「读—判断—写」的竞态窗口；服务层那份判断只是为了把返回值填对，
+-- 真正的保证在这里（约束落在数据库层，不依赖调用方自觉）。
 CREATE OR REPLACE FUNCTION "comai_apply_content_tier"() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -74,6 +82,17 @@ BEGIN
       NEW."whenToUse" := NULL;
       NEW."howToUse" := NULL;
     END IF;
+  END IF;
+
+  -- R4（票 #7）：人工覆盖过的简介，重新采集也不覆盖。
+  -- 例外：这次写入本身就是人工来源（HUMAN）→ 以调用方为准。
+  IF TG_OP = 'UPDATE'
+     AND OLD."summaryOverriddenAt" IS NOT NULL
+     AND NEW."summarySource" IS DISTINCT FROM 'HUMAN'::"SummarySource" THEN
+    NEW."summaryZh" := OLD."summaryZh";
+    NEW."summarySource" := OLD."summarySource";
+    NEW."whenToUse" := OLD."whenToUse";
+    NEW."howToUse" := OLD."howToUse";
   END IF;
 
   RETURN NEW;

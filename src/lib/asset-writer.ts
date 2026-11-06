@@ -112,8 +112,8 @@ export async function writeAsset(input: AssetWriteInput): Promise<Asset> {
   // 「何时用 / 怎么用」主表与扩展表各有一份：主表是权威值，
   // 扩展表里没给就退回扩展表那份 —— 兼容只填了 detail.skill 的旧调用方。
   const mirrored = readMirroredUsage(input.detail, input.kind);
-  const requestedWhenToUse = input.whenToUse ?? mirrored.whenToUse;
-  const requestedHowToUse = input.howToUse ?? mirrored.howToUse;
+  const requestedWhenToUseRaw = input.whenToUse ?? mirrored.whenToUse;
+  const requestedHowToUseRaw = input.howToUse ?? mirrored.howToUse;
 
   // METADATA_ONLY：不落基于原文生成的内容。
   // LLM 生成的简介必然基于原文；人工 / 模板撰写的描述保留。
@@ -125,56 +125,69 @@ export async function writeAsset(input: AssetWriteInput): Promise<Asset> {
   // 「何时用 / 怎么用」按 spec 决策 7 同样由原文生成 → METADATA_ONLY 一并清空；
   // 人工撰写（HUMAN）例外：那是人写的，不是原文摘抄。
   const keepUsage = allowSourceText || input.summarySource === "HUMAN";
-  const whenToUse = keepUsage ? requestedWhenToUse : null;
-  const howToUse = keepUsage ? requestedHowToUse : null;
+  const requestedWhenToUse = keepUsage ? requestedWhenToUseRaw : null;
+  const requestedHowToUse = keepUsage ? requestedHowToUseRaw : null;
+
+  // 人工覆盖优先：这条简介被人工改写过（summaryOverriddenAt 非空）时，
+  // **重新采集也不覆盖它** —— 「生成物必须可被纠正」：
+  // 纠正过一次的东西不该被下一轮采集抹掉。
+  //
+  // 例外：调用方自己写的就是人工来源（HUMAN）→ 以调用方为准
+  //（例如发布者重新发布时提交的新简介）。
+  //
+  // 这一步放在**事务外**：事务里只留必要的写入，别给事务加负担
+  //（交互式事务有 5 秒上限，机器一忙就容易踩线）。
+  // 真正的保证在数据库触发器里（见迁移 20261106180000）：
+  // 触发器在同一次行更新里判定，**没有竞态**。
+  const existing = await prisma.asset.findUnique({
+    where: { slug: input.slug },
+    select: {
+      summaryOverriddenAt: true,
+      summaryZh: true,
+      summarySource: true,
+      whenToUse: true,
+      howToUse: true,
+    },
+  });
+
+  const keepHumanOverride =
+    existing?.summaryOverriddenAt != null && input.summarySource !== "HUMAN";
+
+  // 最终落库的那一份（主表与扩展表镜像共用，保证两边永远一致）。
+  const resolvedSummaryZh = keepHumanOverride ? existing.summaryZh : summaryZh;
+  const resolvedSummarySource = keepHumanOverride ? existing.summarySource : summarySource;
+  const resolvedWhenToUse = keepHumanOverride ? existing.whenToUse : requestedWhenToUse;
+  const resolvedHowToUse = keepHumanOverride ? existing.howToUse : requestedHowToUse;
+
+  const assetData = {
+    kind: input.kind,
+    slug: input.slug,
+    displayName: input.displayName,
+    license,
+    contentTier,
+    contentBody: allowSourceText ? (input.contentBody ?? null) : null,
+    summaryZh: resolvedSummaryZh,
+    summarySource: resolvedSummarySource,
+    whenToUse: resolvedWhenToUse,
+    howToUse: resolvedHowToUse,
+    repoOwner: input.repoOwner ?? null,
+    repoName: input.repoName ?? null,
+    repoUrl: input.repoUrl ?? null,
+    upstreamUrl: input.upstreamUrl ?? null,
+    sourceId: input.sourceId ?? null,
+    publishedAt: input.publishedAt ?? null,
+    lastSyncedAt: input.lastSyncedAt ?? null,
+    isOfficial: input.isOfficial ?? false,
+    currentVersion: input.currentVersion ?? null,
+    stars: input.stars ?? 0,
+    installs: input.installs ?? 0,
+    heatScore: input.heatScore ?? 0,
+    // 重新采集 = 重新变热：清掉归档标记（spec 决策 4 的三档保留策略）。
+    // 归档只由保留策略打上，也只由「重新采集」或「又变热」取消。
+    archivedAt: null,
+  };
 
   return prisma.$transaction(async (tx) => {
-    // 先看一眼这条资产是不是已经被人工覆盖过 —— 人工覆盖优先于重新采集。
-    const existing = await tx.asset.findUnique({
-      where: { slug: input.slug },
-      select: {
-        summaryOverriddenAt: true,
-        summaryZh: true,
-        summarySource: true,
-        whenToUse: true,
-        howToUse: true,
-      },
-    });
-
-    // 人工覆盖过的简介，重新采集**也不覆盖**。
-    // 例外：调用方自己写的就是人工来源（HUMAN）→ 以调用方为准
-    //（例如发布者重新发布时提交的新简介）。
-    const keepHumanOverride =
-      existing?.summaryOverriddenAt != null && input.summarySource !== "HUMAN";
-
-    const assetData = {
-      kind: input.kind,
-      slug: input.slug,
-      displayName: input.displayName,
-      license,
-      contentTier,
-      contentBody: allowSourceText ? (input.contentBody ?? null) : null,
-      summaryZh: keepHumanOverride ? existing.summaryZh : summaryZh,
-      summarySource: keepHumanOverride ? existing.summarySource : summarySource,
-      whenToUse: keepHumanOverride ? existing.whenToUse : whenToUse,
-      howToUse: keepHumanOverride ? existing.howToUse : howToUse,
-      repoOwner: input.repoOwner ?? null,
-      repoName: input.repoName ?? null,
-      repoUrl: input.repoUrl ?? null,
-      upstreamUrl: input.upstreamUrl ?? null,
-      sourceId: input.sourceId ?? null,
-      publishedAt: input.publishedAt ?? null,
-      lastSyncedAt: input.lastSyncedAt ?? null,
-      isOfficial: input.isOfficial ?? false,
-      currentVersion: input.currentVersion ?? null,
-      stars: input.stars ?? 0,
-      installs: input.installs ?? 0,
-      heatScore: input.heatScore ?? 0,
-      // 重新采集 = 重新变热：清掉归档标记（spec 决策 4 的三档保留策略）。
-      // 归档只由保留策略打上，也只由「重新采集」或「又变热」取消。
-      archivedAt: null,
-    };
-
     const asset = await tx.asset.upsert({
       where: { slug: input.slug },
       create: assetData,
@@ -182,8 +195,8 @@ export async function writeAsset(input: AssetWriteInput): Promise<Asset> {
     });
 
     await writeDetail(tx, asset.id, input.kind, input.detail, allowSourceText, {
-      whenToUse,
-      howToUse,
+      whenToUse: resolvedWhenToUse,
+      howToUse: resolvedHowToUse,
     });
 
     return asset;
