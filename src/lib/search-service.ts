@@ -97,6 +97,10 @@ export type SearchHit = {
   kind: AssetKind;
   displayName: string;
   summaryZh: string | null;
+  /// 「何时用」（票 #7）。搜索结果项要把它与「怎么用」分开显示。
+  whenToUse: string | null;
+  /// 「怎么用」（票 #7）。
+  howToUse: string | null;
   license: string | null;
   contentTier: ContentTier;
   isOfficial: boolean;

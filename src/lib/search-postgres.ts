@@ -89,8 +89,9 @@ const WEIGHT_LIKE = Prisma.raw("0.4");
 
 /** 取数用的列。 */
 const SELECT_COLUMNS = Prisma.raw(
-  `"id", "slug", "kind", "displayName", "summaryZh", "license", "contentTier", ` +
-    `"isOfficial", "heatScore", "installs", "stars", "repoOwner", "repoName", "repoUrl", "updatedAt"`,
+  `"id", "slug", "kind", "displayName", "summaryZh", "whenToUse", "howToUse", ` +
+    `"license", "contentTier", "isOfficial", "heatScore", "installs", "stars", ` +
+    `"repoOwner", "repoName", "repoUrl", "updatedAt"`,
 );
 
 /** 取数行。 */
@@ -100,6 +101,8 @@ type AssetRow = {
   kind: AssetKind;
   displayName: string;
   summaryZh: string | null;
+  whenToUse: string | null;
+  howToUse: string | null;
   license: string | null;
   contentTier: ContentTier;
   isOfficial: boolean;
@@ -427,6 +430,8 @@ function toHit(row: AssetRow): SearchHit {
     kind: row.kind,
     displayName: row.displayName,
     summaryZh: row.summaryZh,
+    whenToUse: row.whenToUse,
+    howToUse: row.howToUse,
     license: row.license,
     contentTier: row.contentTier,
     isOfficial: row.isOfficial,

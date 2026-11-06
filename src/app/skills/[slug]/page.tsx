@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { getSkillDetail } from "@/lib/asset-detail";
 import { listAssetComments } from "@/lib/comments";
 
+import { SummarySourceNote, SummaryUsage } from "@/app/SummaryUsage";
+
 import { CopyButton } from "./CopyButton";
 import { CommentsSection } from "./CommentsSection";
 import { InteractionButtons } from "./InteractionButtons";
@@ -57,9 +59,18 @@ export default async function SkillDetailPage({
         <section className="summary">
           <h2>中文简介</h2>
           <p>{skill.summaryZh}</p>
-          {skill.summarySource === "LLM" ? (
-            <p className="note">AI 生成，版权归原作者</p>
-          ) : null}
+          {/* 「AI 生成，版权归原作者」/「人工撰写」/「模板生成」——
+              来源必须标出来：读者才知道这段话能不能当真、该找谁问。 */}
+          <SummarySourceNote source={skill.summarySource} />
+        </section>
+      ) : null}
+
+      {/* 「何时用」与「怎么用」分区显示 —— 这是本平台相对 skills.sh 的核心差异：
+          外部站点的描述只回答「这个 skill 做什么」，不回答「我什么时候该用它」。 */}
+      {skill.whenToUse || skill.howToUse ? (
+        <section className="usage-section">
+          <h2>何时用 / 怎么用</h2>
+          <SummaryUsage whenToUse={skill.whenToUse} howToUse={skill.howToUse} />
         </section>
       ) : null}
 

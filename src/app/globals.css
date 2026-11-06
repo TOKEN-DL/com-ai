@@ -133,6 +133,42 @@ code {
   font-size: 0.9rem;
 }
 
+/* ── 「何时用 / 怎么用」（票 #7）──────────────────────────────────── */
+
+/* 两栏并排；窄屏下自动竖排（见文件末尾的媒体查询）。 */
+.usage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin: 0.5rem 0 0;
+}
+
+.usage-block {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.usage-block p {
+  margin: 0.15rem 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* 「何时用」「怎么用」是分区标题，不是正文 —— 用标签样式区分开。 */
+.usage-label {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+}
+
+.usage-section .usage {
+  margin-top: 0;
+}
+
 /* ── Skill 详情页 ─────────────────────────────────────────────── */
 
 .skill-detail h2 {

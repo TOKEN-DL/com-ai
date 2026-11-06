@@ -10,6 +10,10 @@ export type AssetListItem = {
   slug: string;
   displayName: string;
   summaryZh: string | null;
+  /// 「何时用」（票 #7）。列表页要把它与「怎么用」分开显示。
+  whenToUse: string | null;
+  /// 「怎么用」（票 #7）。
+  howToUse: string | null;
   license: string | null;
   contentTier: string;
   repoOwner: string | null;
@@ -30,6 +34,8 @@ export function toAssetListItem(asset: Asset): AssetListItem {
     slug: asset.slug,
     displayName: asset.displayName,
     summaryZh: asset.summaryZh,
+    whenToUse: asset.whenToUse,
+    howToUse: asset.howToUse,
     license: asset.license,
     contentTier: asset.contentTier,
     repoOwner: asset.repoOwner,
