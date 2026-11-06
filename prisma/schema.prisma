@@ -128,6 +128,20 @@ enum UserRole {
   ADMIN
 }
 
+/// 用户发布的审核状态（spec 决策 11：先自动过滤 + 举报 + 抽查，不做全量预审队列）。
+///
+/// 关键取舍：**新发布默认 PUBLISHED（对外可见）**，不是先进待审队列 ——
+/// 单人运营下全量预审会立刻成为瓶颈。只有命中自动关键词过滤、或被用户举报，
+/// 才会被下架到 PENDING 等人工抽查。
+enum PublishStatus {
+  /// 审核中：命中自动关键词过滤或被举报，已下架，等人工抽查。
+  PENDING
+  /// 已发布：默认状态，对外可见。
+  PUBLISHED
+  /// 已拒绝：运营判定违规，已下架。
+  REJECTED
+}
+
 model Asset {
   id   String    @id @default(cuid())
   kind AssetKind
@@ -167,6 +181,10 @@ model Asset {
   ///   非空 = 归档（超期但高热度：**保留于库、前端隐藏**）。
   /// 超期且低热度的条目由保留策略**物理删除**，不会留在这个状态。
   archivedAt DateTime?
+  /// 当前版本（上游 commit sha，或用户发布的平台 semver）。
+  /// 二期（#16「版本管理与一键更新」）用这一列做「现在装的是哪一版」的判断，
+  /// 版本的完整历史在 AssetVersion 表里 —— 一期只留这一列，不做版本管理。
+  currentVersion String?
   /// 收藏数 / 点赞数（跨三种 kind 统一计数）。
   favoriteCount Int @default(0)
   likeCount     Int @default(0)
@@ -546,6 +564,10 @@ model Report {
 }
 
 /// 用户发布的资产（spec 决策 10：发布自己的资产需要登录）。
+///
+/// 一期（#11）只做「发布 + 自动过滤 + 举报 + 抽查」这条链路；
+/// 二期（#16 版本管理、#17 依赖声明）需要的字段**在这一期就留好**，
+/// 这样二期上线时是往表里加行 / 改值，不用迁移全表。
 model UserPublishedAsset {
   id String @id @default(cuid())
   userId String
@@ -553,10 +575,41 @@ model UserPublishedAsset {
   assetId String
   asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
   publishedAt DateTime @default(now())
-  /// 发布附言。
+  /// 发布附言：用户自己写的那段简介原文。
+  /// 站内展示的中文简介可能是 AI 初稿（见 Asset.summaryZh），
+  /// 用户写的东西永远留在这里，不被 AI 覆盖。
   note String?
+  /// 审核状态。新发布默认 PUBLISHED（对外可见，不做全量预审）。
+  status PublishStatus @default(PUBLISHED)
+  /// 审核意见：运营写给发布者看的话（驳回原因、放行说明）。
+  reviewNote String?
+  /// 命中自动关键词过滤时的原因。
+  filteredReason String?
+  /// 累计被举报次数。
+  reportedCount Int @default(0)
+  /// 最近一次审核的时间。
+  reviewedAt DateTime?
+  /// 最近一次审核人（运营者的 userId）。
+  reviewedBy String?
+
+  // ─── 二期预留（#16 版本管理 / #17 依赖声明）────────────────────────────
+  // 这几列一期不消费，只是把位置留好：二期上线时不必迁移全表。
+
+  /// 发布者声明的版本号（平台 semver）。
+  /// #16 用它生成 AssetVersion(origin=PLATFORM) 行并做更新对比。
+  latestVersion String?
+  /// 仓库内依赖清单的相对路径（平台约定的 manifest）。
+  /// #17 按这个路径回源解析，落到 AssetDependency。
+  manifestPath String?
+  /// 依赖清单 / 版本声明的内容 hash。
+  /// 内容变了 = 上游有新版本 —— #16/#17 判断「要不要重跑」的依据。
+  manifestHash String?
+  /// 已解析出的依赖声明原始快照（#17 落 AssetDependency 之前先存这里，便于复算）。
+  dependencyManifest Json?
 
   @@unique([userId, assetId])
+  @@index([status])
+  @@index([userId, publishedAt])
   @@map("UserPublishedAsset")
 }
 
