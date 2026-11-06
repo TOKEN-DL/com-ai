@@ -25,7 +25,13 @@ const ADMIN_URL =
 
 const PRISMA_CLI = path.join(repoRoot, "node_modules", "prisma", "build", "index.js");
 
-/** #3 约定的业务表：一张都不能少。 */
+/**
+ * 业务表：一张都不能少。
+ *
+ * #3 约定的表打底，后续每一票新增的表也都要写进来 ——
+ * 否则「迁移目录被合并掉了」这类问题不会被这条断言拦住
+ * （迁移条数是按磁盘动态数的，目录少一个照样自洽）。
+ */
 const EXPECTED_TABLES = [
   "Asset",
   "LicensePolicy",
@@ -45,6 +51,8 @@ const EXPECTED_TABLES = [
   // #6 的采集运维：运行记录与告警记录。
   "CollectionRun",
   "CollectionAlert",
+  // #9 的邮箱验证登录：一次性登录令牌（魔法链接 / GitHub OAuth 的 state）。
+  "LoginToken",
 ];
 
 /**
