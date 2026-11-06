@@ -1,13 +1,16 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getSkillDetail } from "@/lib/asset-detail";
 import { listAssetComments } from "@/lib/comments";
+import { resolveSessionUser, SESSION_COOKIE } from "@/lib/session";
 
 import { CopyButton } from "./CopyButton";
 import { CommentsSection } from "./CommentsSection";
 import { InteractionButtons } from "./InteractionButtons";
 import { ReportButton } from "./ReportButton";
+import { VersionUpdateNotice } from "./VersionUpdateNotice";
 
 // 详情要实时读库，不许被静态化。
 export const dynamic = "force-dynamic";
@@ -20,6 +23,10 @@ export const dynamic = "force-dynamic";
  *
  * 一键复制覆盖：安装命令（按宿主）、整份 SKILL.md。
  * 复制的文本由服务端直接传进按钮组件，与页面显示的是同一个字符串。
+ *
+ * 票 #16 追加两块：
+ *   - **版本历史**（版本号 / 时间 / 变更摘要，来源可区分）；
+ *   - **更新提示**（收藏之后出了新版本时出现）。
  */
 export default async function SkillDetailPage({
   params,
@@ -27,7 +34,16 @@ export default async function SkillDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const skill = await getSkillDetail(slug);
+
+  // 登录用户的「更新提示」在服务端就能算（会话 cookie 随请求带上）；
+  // 游客态靠设备指纹，只能由客户端补一次请求（见 VersionUpdateNotice）。
+  const cookieStore = await cookies();
+  const sessionUser = await resolveSessionUser(cookieStore.get(SESSION_COOKIE)?.value ?? null);
+
+  const skill = await getSkillDetail(
+    slug,
+    sessionUser ? { userId: sessionUser.id } : null,
+  );
 
   if (!skill) {
     notFound();
@@ -51,6 +67,20 @@ export default async function SkillDetailPage({
         slug={skill.slug}
         initialLikeCount={skill.likeCount}
         initialFavoriteCount={skill.favoriteCount}
+      />
+
+      <VersionUpdateNotice
+        slug={skill.slug}
+        initial={
+          skill.update
+            ? {
+                hasUpdate: skill.update.hasUpdate,
+                favorited: skill.update.favorited,
+                latestVersion: skill.update.latestVersion,
+                seenVersion: skill.update.seenVersion,
+              }
+            : null
+        }
       />
 
       {skill.summaryZh ? (
@@ -134,6 +164,33 @@ export default async function SkillDetailPage({
             <ReportButton target="ASSET" slug={skill.slug} />
           </dd>
         </dl>
+      </section>
+
+      <section className="meta" id="version-history">
+        <h2>版本历史</h2>
+        {skill.versions.length > 0 ? (
+          <ul className="version-list">
+            {skill.versions.map((version) => (
+              <li key={`${version.origin}:${version.version}`}>
+                <div className="version-head">
+                  <code>{version.label}</code>
+                  {/* 来源可区分：上游仓库的 commit sha / 平台发布的 semver。 */}
+                  <span className="badge-muted">{version.originLabel}</span>
+                  <span className="badge-muted">
+                    {new Date(version.createdAt).toLocaleString("zh-CN")}
+                  </span>
+                </div>
+                {version.changelog ? (
+                  <p className="version-changelog">{version.changelog}</p>
+                ) : (
+                  <p className="badge-muted">这一版没有变更摘要。</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="badge-muted">还没有版本记录。</p>
+        )}
       </section>
 
       <section className="install">

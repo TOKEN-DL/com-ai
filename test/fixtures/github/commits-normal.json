@@ -1,0 +1,58 @@
+[
+  {
+    "sha": "9f1c2b7d4e5a6f708192a3b4c5d6e7f8091a2b3c",
+    "html_url": "https://github.com/vercel-labs/skills/commit/9f1c2b7d4e5a6f708192a3b4c5d6e7f8091a2b3c",
+    "commit": {
+      "author": {
+        "name": "Vercel",
+        "email": "support@vercel.com",
+        "date": "2025-11-04T09:12:44Z"
+      },
+      "committer": {
+        "name": "Vercel",
+        "email": "support@vercel.com",
+        "date": "2025-11-04T09:12:44Z"
+      },
+      "message": "fix(find-skills): correct the install command for codex\n\nThe previous flag was rejected by newer CLI versions.",
+      "tree": {
+        "sha": "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
+        "url": "https://api.github.com/repos/vercel-labs/skills/git/trees/1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d"
+      },
+      "url": "https://api.github.com/repos/vercel-labs/skills/git/commits/9f1c2b7d4e5a6f708192a3b4c5d6e7f8091a2b3c"
+    },
+    "parents": [
+      {
+        "sha": "0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d",
+        "url": "https://api.github.com/repos/vercel-labs/skills/commits/0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d"
+      }
+    ]
+  },
+  {
+    "sha": "0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d",
+    "html_url": "https://github.com/vercel-labs/skills/commit/0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d",
+    "commit": {
+      "author": {
+        "name": "Vercel",
+        "email": "support@vercel.com",
+        "date": "2025-11-01T16:03:09Z"
+      },
+      "committer": {
+        "name": "Vercel",
+        "email": "support@vercel.com",
+        "date": "2025-11-01T16:03:09Z"
+      },
+      "message": "feat: add batch mode to find-skills",
+      "tree": {
+        "sha": "2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e",
+        "url": "https://api.github.com/repos/vercel-labs/skills/git/trees/2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e"
+      },
+      "url": "https://api.github.com/repos/vercel-labs/skills/git/commits/0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d"
+    },
+    "parents": [
+      {
+        "sha": "1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e",
+        "url": "https://api.github.com/repos/vercel-labs/skills/commits/1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e"
+      }
+    ]
+  }
+]

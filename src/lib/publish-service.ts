@@ -34,6 +34,7 @@ import { normalizeSpdxId, resolveContentTier } from "@/lib/license-tier";
 import { filterPublishText } from "@/lib/publish-keyword-filter";
 import { prisma } from "@/lib/prisma";
 import { buildInstallCommands } from "@/lib/skill-install";
+import { recordVersion } from "@/lib/version-store";
 import {
   getSummaryGenerator,
   type SummaryDraft,
@@ -324,7 +325,8 @@ export async function publishAsset(
     publishedAt: new Date(),
     lastSyncedAt: new Date(),
     isOfficial: false,
-    currentVersion: input.version ?? null,
+    // 不传版本号 = 保留原来的版本号（重新发布不该把版本抹掉）。
+    currentVersion: input.version,
     detail: buildDetail(kind, {
       displayName,
       description,
@@ -360,6 +362,21 @@ export async function publishAsset(
     },
   });
 
+  // ─── 8. 版本行（票 #16）────────────────────────────────────────────
+  //
+  // 上游版本与平台发布版本**共用一张 `AssetVersion` 表**，靠 `origin` 区分来源。
+  // 平台发布的版本号就是发布者声明的 semver。
+  const platformVersion = input.version?.trim() ?? "";
+  if (platformVersion.length > 0) {
+    await recordVersion({
+      assetId: asset.id,
+      version: platformVersion,
+      origin: "PLATFORM",
+      changelog: `发布版本 ${platformVersion}`,
+      contentHash: generatorInput.contentHash,
+    });
+  }
+
   // 落库后**回读**一次：数据库触发器（许可证分层的兜底强制执行）可能清掉
   // 正文 / LLM 简介 / whenToUse —— 接口回显的必须是「实际存下来的」，
   // 而不是「我们打算存的」。
@@ -367,7 +384,6 @@ export async function publishAsset(
     where: { id: asset.id },
     include: { skillDetail: true },
   });
-
   return {
     asset: stored,
     publicationId: publication.id,
