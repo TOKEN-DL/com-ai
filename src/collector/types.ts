@@ -42,7 +42,31 @@ export type SkillsShSourceConfig = {
 };
 
 /** 采集源配置（判别联合）。新增采集源时在这里加一个成员即可。 */
-export type SourceConfig = GitHubRepoSourceConfig | SkillsShSourceConfig;
+export type SourceConfig =
+  | GitHubRepoSourceConfig
+  | SkillsShSourceConfig
+  | McpRegistrySourceConfig;
+
+/** MCP 官方 registry 来源配置（票 #13）。 */
+export type McpRegistrySourceConfig = {
+  type: "mcp-registry";
+  /**
+   * 每页条数。registry 的上限是 100（openapi 确认）。
+   * 不给则用 100 —— 少请求几次，省配额。
+   */
+  limit?: number;
+  /**
+   * 本次最多采多少个 server（分页上限）。
+   *
+   * 用来给「工具定义探测」这种重活设个闸门：先把目录采全，
+   * 工具探测每轮只做前 N 个，剩下的下一轮再来。
+   */
+  maxServers?: number;
+  /** 是否探测工具定义（对远程 server 做 MCP 握手）。默认 true。 */
+  discoverTools?: boolean;
+  /** 本轮最多探测多少个远程 server 的工具定义。 */
+  maxToolProbes?: number;
+};
 
 export type SourceType = SourceConfig["type"];
 
@@ -52,6 +76,43 @@ export type ExtraFile = {
   path: string;
   /// 字节数；上游没给就是 null。
   size: number | null;
+};
+
+/** MCP 条目的结构化字段（`kind = "MCP"` 时才有值）。 */
+export type McpItemMetadata = {
+  /** registry 里的原始 server 名（reverse-DNS，如 `io.github.owner/server`）。 */
+  serverName: string;
+  /** 上游版本号（registry 的 `server.version`）。 */
+  serverVersion: string;
+  /** 传输方式：stdio / http / sse / unknown。 */
+  transport: string;
+  /** registry 的 packages 声明（原样存，供详情页展示环境变量与参数）。 */
+  packages: unknown[];
+  /** registry 的 remotes 声明（原样存）。 */
+  remotes: unknown[];
+  /** 探测到的工具定义；null = 没取到（连不上 / 要凭据）。 */
+  tools: unknown[] | null;
+  /** 环境变量清单（含必填 / 密钥标记）。 */
+  envVars: {
+    name: string;
+    required: boolean;
+    secret: boolean;
+    description: string | null;
+    defaultValue: string | null;
+    source: string | null;
+  }[];
+  /** 声明的端口（#14 冲突检测的底座）。 */
+  ports: number[];
+  /** 可直接粘贴的 mcpServers 配置片段。 */
+  config: Record<string, unknown>;
+  /** 配置片段里「需要用户自己填什么」的提示。 */
+  configNotes: { kind: string; target: string; message: string }[];
+  /** 上游发布时间。 */
+  publishedAt: Date | null;
+  /** 上游最近更新时间。 */
+  updatedAt: Date | null;
+  /** 来源仓库（`owner/repo`）；没有仓库时是 null。 */
+  repoSlug: string | null;
 };
 
 /** 规范化条目的结构化字段。 */
@@ -91,6 +152,12 @@ export type RawItemMetadata = {
    * 没有趋势数据时是空数组。
    */
   weeklyInstalls?: number[];
+  /**
+   * MCP 条目的结构化字段。
+   *
+   * 只有 `kind = "MCP"` 的条目才有它 —— 其它 kind 走 frontmatter 那条路。
+   */
+  mcp?: McpItemMetadata;
 };
 
 /** 规范化条目。 */

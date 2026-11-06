@@ -38,6 +38,15 @@ export type IngestReport = {
  */
 export function buildTemplateSummary(item: RawItem): string {
   const { repoOwner, repoName } = item.metadata;
+
+  if (item.metadata.kind === "MCP") {
+    // MCP 条目一律 METADATA_ONLY（registry 不声明许可证），所以只讲来源与名称，
+    // **不带**上游描述 —— 描述是上游原文，不进可检索字段。
+    const name = item.metadata.mcp?.serverName ?? item.title;
+    const where = repoOwner && repoName ? `${repoOwner}/${repoName}` : "MCP 官方 registry";
+    return `来自 ${where} 的 MCP server「${name}」。站内只保留元数据与结构化声明，正文请前往原仓库查看。`;
+  }
+
   const where = repoOwner && repoName ? `${repoOwner}/${repoName}` : "上游仓库";
   const base = `来自 ${where} 的 Skill「${item.title}」。`;
 
@@ -49,6 +58,10 @@ export function buildTemplateSummary(item: RawItem): string {
 
 /** 把一个规范化条目转成写入路径的输入。 */
 export function toAssetWriteInput(item: RawItem): Parameters<typeof writeAsset>[0] {
+  if (item.metadata.kind === "MCP") {
+    return toMcpAssetWriteInput(item);
+  }
+
   const installCmds = buildInstallCommands({
     owner: item.metadata.repoOwner,
     repo: item.metadata.repoName,
@@ -81,6 +94,50 @@ export function toAssetWriteInput(item: RawItem): Parameters<typeof writeAsset>[
         hosts: Object.keys(installCmds),
         skillPath: item.metadata.skillPath,
         extraFiles: item.metadata.extraFiles as unknown as Prisma.InputJsonValue,
+      },
+    },
+  };
+}
+
+/**
+ * MCP 条目的写入输入。
+ *
+ * ⚠️ 扩展表里的字段（工具定义 / 环境变量 / 传输方式 / 配置片段）**不是**「基于原文
+ *    生成的内容」，所以不受 METADATA_ONLY 档位清空 `contentBody` 的影响 ——
+ *    结构化声明照常存，站内也照常展示。
+ */
+function toMcpAssetWriteInput(item: RawItem): Parameters<typeof writeAsset>[0] {
+  const mcp = item.metadata.mcp;
+
+  return {
+    kind: "MCP",
+    slug: item.slug,
+    displayName: item.title,
+    license: item.metadata.license,
+    // MCP 的「正文」是 server 自己的 README / 源码，站内不取。
+    contentBody: null,
+    summaryZh: buildTemplateSummary(item),
+    summarySource: "TEMPLATE",
+    repoOwner: item.metadata.repoOwner || null,
+    repoName: item.metadata.repoName || null,
+    repoUrl: item.metadata.repoUrl,
+    upstreamUrl: item.metadata.upstreamUrl,
+    sourceId: item.metadata.sourceId,
+    publishedAt: item.publishedAt ?? null,
+    lastSyncedAt: new Date(),
+    isOfficial: item.metadata.isOfficial,
+    stars: item.metadata.stars,
+    installs: item.metadata.installs,
+    heatScore: item.metadata.heatScore,
+    detail: {
+      mcp: {
+        transport: mcp?.transport ?? null,
+        packages: (mcp?.packages ?? []) as unknown as Prisma.InputJsonValue,
+        remotes: (mcp?.remotes ?? []) as unknown as Prisma.InputJsonValue,
+        tools: mcp?.tools ? (mcp.tools as unknown as Prisma.InputJsonValue) : undefined,
+        envVars: (mcp?.envVars ?? []).map((variable) => variable.name),
+        ports: mcp?.ports ?? [],
+        configJson: (mcp?.config ?? {}) as unknown as Prisma.InputJsonValue,
       },
     },
   };
