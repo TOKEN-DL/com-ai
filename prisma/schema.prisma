@@ -1,8 +1,13 @@
 // com-ai 数据模型 —— 统一资产主表 + 类型判别列（spec「Implementation Decisions」第 3 节）
 //
-// #2 只落「地基」：Asset 主表 + contentTier 枚举位 + 检索所需扩展。
-// 其余表（SkillDetail / McpDetail / PromptDetail / AssetVersion / AssetDependency /
-// Favorite / Like / Comment / User / Session ...）由 #3 一次建齐，本票不建。
+// #2 落了「地基」：Asset 主表 + contentTier 枚举位 + 检索所需扩展。
+// #3 一次建齐：Asset 全字段、三张 1:1 扩展表、版本与依赖、用户与会话、
+// 收藏 / 点赞 / 评论 / 举报 / 用户发布 / 用户安装，以及**写入路径上的许可证分层强制执行**。
+//
+// 许可证分层规则（spec 约束 1）落在两处，规则本身只有一份定义：
+//   - src/lib/license-tier.ts —— 纯函数 SPDX id → 内容档位（可单元测试）；
+//   - prisma/migrations/**_add_full_data_model/migration.sql 里的触发器 —— 兜底强制执行，
+//     绕过服务层直接写库也得到相同结果。
 
 generator client {
   provider = "prisma-client-js"
@@ -27,7 +32,6 @@ enum AssetKind {
 /// 内容档位（spec 约束 1：许可证分层必须在写入路径强制执行）。
 /// FULL = CC0/MIT/Apache 等允许再分发，可存正文、可生成简介；
 /// METADATA_ONLY = 无许可证或限制性许可证，只存元数据与链接，不复制原文。
-/// 写入路径的强制执行由 #3 的服务层负责；这里只把档位位留在主表上。
 enum ContentTier {
   FULL
   METADATA_ONLY
@@ -38,6 +42,72 @@ enum SummarySource {
   LLM
   HUMAN
   TEMPLATE
+}
+
+/// 版本来源：上游仓库 commit sha，或平台自己的 semver。
+enum VersionOrigin {
+  UPSTREAM
+  PLATFORM
+}
+
+/// 依赖指向的东西是什么。
+enum DependencyKind {
+  SKILL
+  MCP
+  PROMPT
+  PACKAGE
+  HOST
+  OTHER
+}
+
+/// Prompt 的模态分类。
+enum PromptModality {
+  TEXT
+  IMAGE
+  VIDEO
+  MUSIC
+}
+
+/// 评论状态：自动关键词过滤 → 用户举报 → 人工抽查（spec 决策 11）。
+enum CommentStatus {
+  /// 正常可见
+  VISIBLE
+  /// 命中关键词过滤，待人工抽查
+  PENDING
+  /// 被隐藏（举报成立 / 运营处理）
+  HIDDEN
+  /// 作者删除
+  DELETED
+}
+
+/// 举报对象类型。
+enum ReportTarget {
+  ASSET
+  COMMENT
+}
+
+/// 举报理由。
+enum ReportReason {
+  SPAM
+  ILLEGAL
+  COPYRIGHT
+  INFRINGING
+  OFFENSIVE
+  OTHER
+}
+
+/// 举报处理状态。
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+/// 平台角色。
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
 }
 
 model Asset {
@@ -55,9 +125,13 @@ model Asset {
   repoName  String?
   repoUrl   String?
   /// SPDX 许可证 id（如 MIT / Apache-2.0）；null = 未声明 → 只能是 METADATA_ONLY。
+  /// 写入时由触发器归一化为小写 SPDX id。
   license String?
   /// 内容档位。默认取最严格的 METADATA_ONLY，避免漏判许可证时误存正文。
+  /// ⚠️ 该列由数据库触发器按 license 推导并强制覆盖，调用方传入的值不作数。
   contentTier ContentTier @default(METADATA_ONLY)
+  /// 资产正文（当前版本原文）。⚠️ 只有 FULL 档位能存；METADATA_ONLY 由触发器强制清空。
+  contentBody String?
   /// 上游原始地址（与 repoUrl 区分：repoUrl 指来源仓库，upstreamUrl 指资产本体）。
   upstreamUrl String?
   stars    Int   @default(0)
@@ -70,12 +144,312 @@ model Asset {
   lastSyncedAt DateTime?
   /// 官方认证资产。
   isOfficial Boolean @default(false)
+  /// 收藏数 / 点赞数（跨三种 kind 统一计数）。
+  favoriteCount Int @default(0)
+  likeCount     Int @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  skillDetail   SkillDetail?
+  mcpDetail     McpDetail?
+  promptDetail  PromptDetail?
+  versions      AssetVersion[]
+  dependenciesFrom AssetDependency[] @relation("AssetDependencyFrom")
+  dependenciesTo   AssetDependency[] @relation("AssetDependencyTo")
+  favorites     Favorite[]
+  likes         Like[]
+  comments      Comment[]
+  reports       Report[]
+  publishedBy   UserPublishedAsset[]
+  installedBy   UserInstall[]
 
   @@index([kind])
   @@index([contentTier])
   @@index([heatScore])
   @@index([sourceId])
+  @@index([kind, heatScore])
+  @@index([repoOwner, repoName])
   @@map("Asset")
+}
+
+/// 许可证 → 内容档位的映射表（唯一的事实来源之一，DB 触发器按它分流）。
+/// spdxId 一律小写；表里没有的许可 → METADATA_ONLY。
+model LicensePolicy {
+  /// 归一化后的小写 SPDX id（mit / apache-2.0 / cc0-1.0 ...）。
+  spdxId String @id
+  /// 该许可对应的内容档位。
+  tier ContentTier
+  /// 备注：为什么属于这一档。
+  note String?
+
+  @@map("LicensePolicy")
+}
+
+/// Skill 专属字段（与 Asset 1:1）。
+model SkillDetail {
+  assetId String @id
+  asset   Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  /// SKILL.md 的 frontmatter（name / description / license ...）。
+  frontmatter Json?
+  /// 「何时用」。由原文生成 → METADATA_ONLY 档位强制为空（触发器）。
+  whenToUse String?
+  /// 「怎么用」。由原文生成 → METADATA_ONLY 档位强制为空（触发器）。
+  howToUse String?
+  /// 按宿主划分的安装命令，如 { "claude-code": "npx ..." }。
+  installCmds Json?
+  /// 支持的宿主：claude-code / codex / cursor ...
+  hosts String[] @default([])
+  /// SKILL.md 在仓库中的相对路径。
+  skillPath String?
+  /// 额外文件清单（只存元数据，不含文件内容）。
+  extraFiles Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("SkillDetail")
+}
+
+/// MCP 专属字段（与 Asset 1:1）。
+model McpDetail {
+  assetId String @id
+  asset   Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  /// stdio / sse / http
+  transport String?
+  /// 本地包声明，如 [{ name, version }]。
+  packages Json?
+  /// 远端 server 声明。
+  remotes Json?
+  /// 工具清单 [{ name, description }]。
+  tools Json?
+  /// 声明的环境变量名（冲突检测用，spec 决策 13）。
+  envVars String[] @default([])
+  /// 声明的端口（冲突检测用）。
+  ports Int[] @default([])
+  /// 平台侧的 mcpServers 配置片段。
+  configJson Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("McpDetail")
+}
+
+/// Prompt 专属字段（与 Asset 1:1）。
+model PromptDetail {
+  assetId String @id
+  asset   Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  modality PromptModality @default(TEXT)
+  /// 动作描述（f/prompts.chat 的 act 字段）。
+  act String?
+  /// 提示词正文。⚠️ 只有 FULL 档位能存；METADATA_ONLY 由触发器强制清空。
+  promptBody String?
+  /// 面向开发者的说明。
+  forDevs String?
+  /// 贡献者署名。
+  contributor String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("PromptDetail")
+}
+
+/// 资产版本：上游仓库用 commit sha，用户发布的用平台 semver。
+model AssetVersion {
+  id String @id @default(cuid())
+  assetId String
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  /// 上游 commit sha 或平台 semver。
+  version String
+  origin VersionOrigin
+  changelog String?
+  /// 正文快照。⚠️ 只有 FULL 档位能存；METADATA_ONLY 由触发器强制清空。
+  snapshot String?
+  /// 正文 hash，用于简介生成缓存（spec 决策 7）。
+  contentHash String?
+  createdAt DateTime @default(now())
+
+  @@unique([assetId, version, origin])
+  @@index([assetId, origin])
+  @@map("AssetVersion")
+}
+
+/// 资产之间的依赖声明（二期「依赖展示」与查表式冲突检测的底座）。
+model AssetDependency {
+  id String @id @default(cuid())
+  fromId String
+  toId String
+  from Asset @relation("AssetDependencyFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   Asset @relation("AssetDependencyTo", fields: [toId], references: [id], onDelete: Cascade)
+  kind DependencyKind
+  /// 版本约束，如 ">=1.2.0" / "latest"。
+  constraint String?
+  createdAt DateTime @default(now())
+
+  @@unique([fromId, toId, kind])
+  @@index([toId])
+  @@map("AssetDependency")
+}
+
+model User {
+  id String @id @default(cuid())
+  /// 邮箱魔法链接登录（spec 决策 10），GitHub OAuth 为辅。
+  email String @unique
+  emailVerifiedAt DateTime?
+  /// argon2 哈希（spec 决策 10）。
+  passwordHash String?
+  /// GitHub OAuth 登录的用户名。
+  githubLogin String? @unique
+  displayName String?
+  avatarUrl String?
+  role UserRole @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions        Session[]
+  favorites       Favorite[]
+  likes           Like[]
+  comments        Comment[]
+  reports         Report[]
+  publishedAssets UserPublishedAsset[]
+  installs        UserInstall[]
+
+  @@map("User")
+}
+
+model Session {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 只存令牌哈希，不存明文。
+  tokenHash String @unique
+  expiresAt DateTime
+  userAgent String?
+  /// IP 哈希（游客态限流用，不存明文 IP）。
+  ipHash String?
+  createdAt DateTime @default(now())
+  lastUsedAt DateTime?
+
+  @@index([userId])
+  @@map("Session")
+}
+
+/// 收藏。游客态用设备指纹（哈希后的 deviceId），登录后合并到账号。
+/// 三种 kind 的资产共用这一张表 —— 收藏挂在 Asset 上，不按 kind 分表。
+model Favorite {
+  id String @id @default(cuid())
+  assetId String
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  /// 行为主体键：user:<userId> 或 device:<deviceId>。全局唯一键 = assetId + actorKey。
+  actorKey String
+  /// 已登录时关联的账号（游客态为 null）。
+  userId String?
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 游客态设备指纹（哈希后）。
+  deviceId String?
+  createdAt DateTime @default(now())
+
+  @@unique([assetId, actorKey])
+  @@index([userId])
+  @@index([deviceId])
+  @@map("Favorite")
+}
+
+/// 点赞。游客态用设备指纹 + IP 限流，结构与 Favorite 一致。
+model Like {
+  id String @id @default(cuid())
+  assetId String
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  actorKey String
+  userId String?
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId String?
+  createdAt DateTime @default(now())
+
+  @@unique([assetId, actorKey])
+  @@index([userId])
+  @@index([deviceId])
+  @@map("Like")
+}
+
+/// 评论。必须登录（spec 决策 10）。
+model Comment {
+  id String @id @default(cuid())
+  assetId String
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 回复的父评论（null = 顶层评论）。
+  parentId String?
+  parent Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[] @relation("CommentReplies")
+  body String
+  status CommentStatus @default(VISIBLE)
+  /// 命中自动关键词过滤时的原因。
+  filteredReason String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  reports Report[]
+
+  @@index([assetId, createdAt])
+  @@index([userId])
+  @@index([status])
+  @@map("Comment")
+}
+
+/// 举报：可举报资产或评论（spec 决策 11）。
+model Report {
+  id String @id @default(cuid())
+  target ReportTarget
+  /// target = ASSET 时非空。
+  assetId String?
+  asset Asset? @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  /// target = COMMENT 时非空。
+  commentId String?
+  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  /// 举报人（游客态可为空）。
+  reporterUserId String?
+  reporter User? @relation(fields: [reporterUserId], references: [id], onDelete: SetNull)
+  reason ReportReason
+  detail String?
+  status ReportStatus @default(OPEN)
+  createdAt DateTime @default(now())
+  resolvedAt DateTime?
+
+  @@index([status])
+  @@index([assetId])
+  @@index([commentId])
+  @@map("Report")
+}
+
+/// 用户发布的资产（spec 决策 10：发布自己的资产需要登录）。
+model UserPublishedAsset {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetId String
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  publishedAt DateTime @default(now())
+  /// 发布附言。
+  note String?
+
+  @@unique([userId, assetId])
+  @@map("UserPublishedAsset")
+}
+
+/// 用户安装清单（跨设备同步安装清单，spec 决策 10）。
+model UserInstall {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetId String
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  /// 安装到的宿主（claude-code / codex ...）。
+  host String?
+  /// 安装时的版本号。
+  version String?
+  installedAt DateTime @default(now())
+
+  @@unique([userId, assetId])
+  @@map("UserInstall")
 }

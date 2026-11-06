@@ -7,12 +7,17 @@
  *   - pg_trgm 能对中文做相似度匹配，但查询串至少要 3 个字符
  *     （2 个中文字符的 similarity 为 0，匹配不上）。
  */
+import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 
 import { prisma } from "@/lib/prisma";
 import { ASSET_FULLTEXT_EXPRESSION } from "@/lib/search-expression";
 
-const FULLTEXT_PREDICATE = ASSET_FULLTEXT_EXPRESSION;
+/**
+ * 检索表达式必须作为**原始 SQL 片段**注入，不能当参数传：
+ * 参数化之后 Postgres 不知道它是 tsvector，会报 "jsonb @@ tsquery"。
+ */
+const fulltext = Prisma.raw(ASSET_FULLTEXT_EXPRESSION);
 
 async function seedAssets(): Promise<void> {
   await prisma.asset.create({
@@ -40,7 +45,7 @@ describe("Postgres 全文检索", () => {
 
     const hits = await prisma.$queryRaw<{ slug: string }[]>`
       SELECT "slug" FROM "Asset"
-      WHERE ${prisma.$queryRawUnsafe(FULLTEXT_PREDICATE)} @@ plainto_tsquery('simple', 'compose')
+      WHERE ${fulltext} @@ plainto_tsquery('simple', 'compose')
       ORDER BY "slug"
     `;
 
@@ -52,7 +57,7 @@ describe("Postgres 全文检索", () => {
 
     const hits = await prisma.$queryRaw<{ slug: string }[]>`
       SELECT "slug" FROM "Asset"
-      WHERE ${prisma.$queryRawUnsafe(FULLTEXT_PREDICATE)} @@ plainto_tsquery('simple', '部署')
+      WHERE ${fulltext} @@ plainto_tsquery('simple', '部署')
       ORDER BY "slug"
     `;
 
