@@ -56,6 +56,13 @@ export type RepoStatsOptions = {
   delayMs?: number;
   /// 可注入的等待（测试不用真等）。
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * 每次发出 Search API 请求时回调（带请求 URL）。
+   *
+   * 用来记账配额占用：Search API 的配额是「每分钟 N 次」，
+   * 运维得知道一轮采集到底打了多少次。
+   */
+  onRequest?: (url: string) => void;
 };
 
 /** 未认证时 Search API 的配额是 10 次/分钟 → 每批至少隔 6.5 秒。 */
@@ -124,7 +131,7 @@ export async function fetchRepoStats(
     if (i > 0 && delayMs > 0) {
       await sleep(delayMs);
     }
-    const stats = await fetchBatch(batches[i], { http, token, apiBase });
+    const stats = await fetchBatch(batches[i], { http, token, apiBase, onRequest: options.onRequest });
     for (const [slug, value] of stats) {
       out.set(slug, value);
     }
@@ -137,6 +144,7 @@ type BatchContext = {
   http: HttpClient;
   token: string | null;
   apiBase: string;
+  onRequest?: (url: string) => void;
 };
 
 /**
@@ -167,6 +175,7 @@ async function fetchBatch(
 
   const query = batch.map((slug) => `repo:${slug}`).join(" ");
   const url = `${context.apiBase}/search/repositories?q=${encodeURIComponent(query)}&per_page=100`;
+  context.onRequest?.(url);
 
   let payload: unknown;
   try {

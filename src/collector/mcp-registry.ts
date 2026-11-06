@@ -115,13 +115,18 @@ function assertEntryShape(value: unknown, index: number): McpServerEntry {
   };
 }
 
+export type McpStarsFetcher = (
+  slugs: string[],
+  onRequest?: (url: string) => void,
+) => Promise<Map<string, RepoStats>>;
+
 export type McpRegistryAdapterOptions = {
   /// 注入 HTTP 客户端（测试用 fixture 驱动；生产用默认的带容错实现）。
   http?: HttpClient;
   /// registry 根地址。
   base?: string;
   /// 查仓库 star 的实现（测试可注入假实现）。
-  fetchStars?: (slugs: string[]) => Promise<Map<string, RepoStats>>;
+  fetchStars?: McpStarsFetcher;
   /// 探测工具定义的实现（测试可注入假实现）。
   discoverTools?: (url: string, transport: McpTransportType) => Promise<McpTool[] | null>;
   /// 工具探测用的 HTTP 客户端（不给则单独造一个「不重试」的）。
@@ -137,7 +142,7 @@ export class McpRegistryAdapter implements SourceAdapter<McpRegistrySourceConfig
   private readonly http: HttpClient;
   private readonly toolHttp: HttpClient;
   private readonly base: string;
-  private readonly fetchStars: (slugs: string[]) => Promise<Map<string, RepoStats>>;
+  private readonly fetchStars: McpStarsFetcher;
   private readonly discoverTools: (url: string, transport: McpTransportType) => Promise<McpTool[] | null>;
   private readonly toolConcurrency: number;
 
@@ -150,7 +155,8 @@ export class McpRegistryAdapter implements SourceAdapter<McpRegistrySourceConfig
       (options.http ?? createHttpClient({ timeoutMs: TOOL_PROBE_TIMEOUT_MS, retries: 0 }));
     this.base = (options.base ?? MCP_REGISTRY_BASE).replace(/\/+$/, "");
     this.fetchStars =
-      options.fetchStars ?? ((slugs) => fetchRepoStats(slugs, { http: this.http }));
+      options.fetchStars ??
+      ((slugs, onRequest) => fetchRepoStats(slugs, { http: this.http, onRequest }));
     this.discoverTools =
       options.discoverTools ??
       ((url, transport) =>
@@ -187,9 +193,9 @@ export class McpRegistryAdapter implements SourceAdapter<McpRegistrySourceConfig
     }
 
     const limit = Math.min(config.limit ?? MAX_PAGE_LIMIT, MAX_PAGE_LIMIT);
-    const maxServers = config.maxServers ?? 1_000;
+    const maxServers = config.maxServers ?? 500;
     const discoverTools = config.discoverTools ?? true;
-    const maxToolProbes = config.maxToolProbes ?? 200;
+    const maxToolProbes = config.maxToolProbes ?? 500;
 
     const issues: string[] = [];
     const entries: McpServerEntry[] = [];
@@ -260,9 +266,16 @@ export class McpRegistryAdapter implements SourceAdapter<McpRegistrySourceConfig
       }
     }
     let stars = new Map<string, RepoStats>();
+    let starRequests = 0;
     if (repoSlugs.length > 0) {
+      const unique = [...new Set(repoSlugs)];
       try {
-        stars = await this.fetchStars([...new Set(repoSlugs)]);
+        stars = await this.fetchStars(unique, () => {
+          starRequests += 1;
+        });
+        issues.push(
+          `仓库 star 查询：${unique.length} 个仓库，${starRequests} 次 Search API 请求`,
+        );
       } catch (error) {
         // 热度拿不到**不阻塞入库**（票里明确：降级，不报错）。
         issues.push(
@@ -314,7 +327,9 @@ export class McpRegistryAdapter implements SourceAdapter<McpRegistrySourceConfig
         issues.push(`工具定义探测：${probed} 个远程 server，${succeeded} 个取到工具清单`);
       }
       if (targets.length < remoteEntries.length) {
-        issues.push(`本轮只探测了前 ${targets.length} 个远程 server 的工具，其余留到下次`);
+        issues.push(
+          `本轮只探测了前 ${targets.length} 个远程 server 的工具，其余 ${remoteEntries.length - targets.length} 个本轮未探测`,
+        );
       }
     }
 

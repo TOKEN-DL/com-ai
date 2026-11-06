@@ -148,6 +148,9 @@ async function readSseMessage(
         break;
       }
       buffer += decoder.decode(chunk.value, { stream: true });
+      // ⚠️ 事件分隔符可能是 "\n\n" 也可能是 "\r\n\r\n"（不同 server 的实现不一样），
+      //    统一成 "\n" 再找边界。
+      buffer = buffer.replace(/\r\n/g, "\n");
 
       let boundary = buffer.indexOf("\n\n");
       while (boundary !== -1) {

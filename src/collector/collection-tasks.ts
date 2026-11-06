@@ -215,8 +215,10 @@ export function buildCollectionTasks(options: BuildTasksOptions = {}): Collectio
       schedule:
         options.mcpSchedule ?? resolveSchedule("CRON_MCP_REGISTRY", MCP_REGISTRY_SCHEDULE),
       adapter: options.mcpAdapter,
-      maxServers: options.mcpMaxServers,
-      maxToolProbes: options.mcpMaxToolProbes,
+      maxServers:
+        options.mcpMaxServers ?? resolveNumber("MCP_MAX_SERVERS", 500),
+      maxToolProbes:
+        options.mcpMaxToolProbes ?? resolveNumber("MCP_MAX_TOOL_PROBES", 500),
       dryRun: options.dryRun ?? false,
     }),
   ];
