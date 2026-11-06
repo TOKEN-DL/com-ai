@@ -99,6 +99,9 @@ services:
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
       DATABASE_URL: *app-db-url
+      # 采集不在应用容器跑（唯一归属是 cron 容器）。显式关掉：
+      # 应用容器一多，每个副本都采集一遍就是重复采集（正确性 bug）。
+      COLLECTOR_CRON_ENABLED: "false"
     ports:
       - "${APP_PORT:-3000}:3000"
     healthcheck:
@@ -110,6 +113,10 @@ services:
 
   # ─── 定时任务容器 ────────────────────────────────────────────────
   # 与应用同镜像同语言同进程栈，独立跑 node-cron 调度。
+  # **采集 cron 的唯一归属就是这个容器**：应用容器不再采集，
+  # 否则应用一扩到多副本，每个副本都会各自采一遍（重复采集 = 正确性 bug）。
+  # 容器自己被扩到多副本也不要紧：采集前有 Postgres advisory lock 做单飞保护，
+  # 同一个采集源同一时刻只有一个实例真的采集。
   cron:
     build:
       context: .
@@ -124,7 +131,9 @@ services:
       NODE_ENV: production
       DATABASE_URL: *app-db-url
       WORKER_PORT: "3001"
-      # 骨架调度表达式；采集管道（#6）接入时按源拆成多个独立 cron。
+      # 采集 cron 在这个容器里开。
+      COLLECTOR_CRON_ENABLED: "true"
+      # 骨架调度表达式；采集管道（#6）按源拆成多个独立 cron。
       CRON_SCHEDULE: "${CRON_SCHEDULE:-0 * * * *}"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3001/healthz"]
