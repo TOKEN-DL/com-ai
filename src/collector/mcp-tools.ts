@@ -67,30 +67,141 @@ const JSONRPC_HEADERS = {
  * 响应有两种形态（实测）：
  *   - `application/json`：`{"jsonrpc":"2.0","id":2,"result":{...}}`
  *   - `text/event-stream`：`event: message\ndata: {"jsonrpc":"2.0",...}`
+ *
+ * ⚠️ SSE 形态**不能**用 `response.text()`：streamable-http 的 server 发完响应
+ *    之后**不会关流**（它在等下一条消息），`text()` 会一直等到超时。
+ *    所以这里流式读，拿到目标 id 的那条消息就停。
  */
-function extractJsonRpcResult(text: string, contentType: string | null): unknown {
-  const trimmed = text.trim();
-  if (trimmed.length === 0) {
-    return null;
+async function readJsonRpcPayload(
+  response: Response,
+  expectedId: number,
+  timeoutMs: number,
+): Promise<unknown> {
+  const contentType = response.headers.get("content-type");
+  if (contentType !== null && contentType.includes("text/event-stream")) {
+    return readSseMessage(response, expectedId, timeoutMs);
+  }
+  const text = await readBodyText(response, timeoutMs);
+  return tryParse(text);
+}
+
+/** 流式读 body，最多读 timeoutMs 毫秒。 */
+async function readBodyText(response: Response, timeoutMs: number): Promise<string> {
+  const body = response.body;
+  if (!body) {
+    return "";
+  }
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  const deadline = Date.now() + timeoutMs;
+  let text = "";
+
+  try {
+    for (;;) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        break;
+      }
+      const chunk = await raceWithTimeout(reader.read(), remaining);
+      if (chunk === null) {
+        break;
+      }
+      if (chunk.done) {
+        break;
+      }
+      text += decoder.decode(chunk.value, { stream: true });
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
   }
 
-  if (contentType !== null && contentType.includes("text/event-stream")) {
-    // 取最后一条 data: 事件（一次响应可能带心跳等前置事件）。
-    const dataLines = trimmed
-      .split(/\r?\n/)
-      .filter((line) => line.startsWith("data:"))
-      .map((line) => line.slice("data:".length).trim())
-      .filter((line) => line.length > 0);
-    for (let i = dataLines.length - 1; i >= 0; i -= 1) {
-      const parsed = tryParse(dataLines[i]);
-      if (parsed !== null) {
-        return parsed;
+  return text;
+}
+
+/**
+ * 流式读 SSE，拿到 id 匹配的那条 JSON-RPC 消息就返回。
+ *
+ * SSE 的事件之间用空行分隔；`data:` 行是消息体（可能多行）。
+ */
+async function readSseMessage(
+  response: Response,
+  expectedId: number,
+  timeoutMs: number,
+): Promise<unknown> {
+  const body = response.body;
+  if (!body) {
+    return null;
+  }
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  const deadline = Date.now() + timeoutMs;
+  let buffer = "";
+
+  try {
+    for (;;) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        break;
+      }
+      const chunk = await raceWithTimeout(reader.read(), remaining);
+      if (chunk === null || chunk.done) {
+        break;
+      }
+      buffer += decoder.decode(chunk.value, { stream: true });
+
+      let boundary = buffer.indexOf("\n\n");
+      while (boundary !== -1) {
+        const raw = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        const parsed = parseSseEvent(raw);
+        if (parsed !== null && isRecord(parsed) && parsed.id === expectedId) {
+          return parsed;
+        }
+        boundary = buffer.indexOf("\n\n");
       }
     }
-    return null;
+  } finally {
+    await reader.cancel().catch(() => undefined);
   }
 
-  return tryParse(trimmed);
+  // 流结束了但还没匹配上：把剩下的 buffer 当最后一条事件试试。
+  const tail = parseSseEvent(buffer);
+  if (tail !== null && isRecord(tail) && tail.id === expectedId) {
+    return tail;
+  }
+  return null;
+}
+
+/** 读超时：到点就返回 null（而不是把整个采集挂住）。 */
+async function raceWithTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+  }
+}
+
+/** 一条 SSE 事件（`event:` / `data:` 行）→ JSON。 */
+function parseSseEvent(raw: string): unknown {
+  const data = raw
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice("data:".length).trim())
+    .filter((line) => line.length > 0)
+    .join("");
+  if (data.length === 0) {
+    return null;
+  }
+  return tryParse(data);
 }
 
 function tryParse(text: string): unknown {
@@ -165,12 +276,10 @@ export async function discoverRemoteTools(
     });
 
     sessionId = response.headers.get("mcp-session-id");
-    const initializeText = await response.text();
     if (!response.ok) {
       return null;
     }
-    // 握手本身失败（返回 error）就不继续了。
-    const initializePayload = extractJsonRpcResult(initializeText, response.headers.get("content-type"));
+    const initializePayload = await readJsonRpcPayload(response, 1, timeoutMs);
     if (isRecord(initializePayload) && initializePayload.error) {
       return null;
     }
@@ -182,12 +291,14 @@ export async function discoverRemoteTools(
   // ② notifications/initialized：告诉 server 握手完成。
   //    有些 server 不回响应，失败也不该中断后面的 tools/list。
   try {
-    await options.http(url, {
+    const response = await options.http(url, {
       method: "POST",
       headers: sessionId ? { ...JSONRPC_HEADERS, "mcp-session-id": sessionId } : JSONRPC_HEADERS,
       body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
       timeoutMs,
     });
+    // 响应体没人读 —— 主动断掉，别把连接挂着。
+    await response.body?.cancel().catch(() => undefined);
   } catch {
     // 忽略。
   }
@@ -203,8 +314,7 @@ export async function discoverRemoteTools(
     if (!response.ok) {
       return null;
     }
-    const text = await response.text();
-    const payload = extractJsonRpcResult(text, response.headers.get("content-type"));
+    const payload = await readJsonRpcPayload(response, 2, timeoutMs);
     return toTools(payload);
   } catch {
     return null;

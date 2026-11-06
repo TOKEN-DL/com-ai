@@ -179,7 +179,9 @@ describe("GET /api/mcp/{slug}", () => {
 
     const body = await response.json();
     const byName = new Map(
-      (body.envVars as { name: string }[]).map((variable) => [variable.name, variable]),
+      (body.envVars as { name: string; required: boolean; secret: boolean; defaultValue: string | null }[]).map(
+        (variable) => [variable.name, variable],
+      ),
     );
     expect(byName.get("GCS_BUCKET")?.required).toBe(true);
     expect(byName.get("GCS_PRIVATE_KEY")?.secret).toBe(true);

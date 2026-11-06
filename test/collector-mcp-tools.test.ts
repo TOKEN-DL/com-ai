@@ -124,6 +124,47 @@ describe("MCP 工具发现 —— SSE 响应", () => {
     const schema = tools?.[0]?.inputSchema as { required: string[] };
     expect(schema.required).toEqual(["repoName", "question"]);
   });
+
+  it("回归：SSE 流一直不结束时也能立刻拿到结果（不等超时）", async () => {
+    // streamable-http 的 server 发完响应**不会关流**（它在等下一条消息）。
+    // 用 `response.text()` 读会一直等到超时 —— 必须流式读、拿到消息就停。
+    const encoder = new TextEncoder();
+    const http: HttpClient = async (_url, init = {}) => {
+      const body = init.body ?? "";
+      if (body.includes('"method":"initialize"')) {
+        return new Response(
+          JSON.stringify({ jsonrpc: "2.0", id: 1, result: { capabilities: {} } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (body.includes('"method":"tools/list"')) {
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(
+              encoder.encode(
+                'event: message\ndata: {"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"ask","description":"d"}]}}\n\n',
+              ),
+            );
+            // 故意不 close()：模拟 server 保持长连接。
+          },
+        });
+        return new Response(stream, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      }
+      return new Response("", { status: 202 });
+    };
+
+    const startedAt = Date.now();
+    const tools = await discoverRemoteTools(TOOLS_URL, { http, timeoutMs: 30_000 });
+    const elapsed = Date.now() - startedAt;
+
+    expect(tools).toHaveLength(1);
+    expect(tools?.[0]).toMatchObject({ name: "ask" });
+    // 拿到就停，不该等到 30 秒超时。
+    expect(elapsed).toBeLessThan(5_000);
+  });
 });
 
 describe("MCP 工具发现 —— 拿不到就返回 null", () => {

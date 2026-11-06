@@ -130,7 +130,7 @@ describe("GET /api/search", () => {
 });
 
 describe("/search 页面", () => {
-  it("结果项指向详情页 /skills/{slug}", async () => {
+  it("结果项按 kind 指向各自的详情页", async () => {
     await seedAssets();
 
     const element = await SearchPage({
@@ -138,8 +138,11 @@ describe("/search 页面", () => {
     });
     const html = renderToStaticMarkup(element);
 
+    // Skill 走 /skills/{slug}。
     expect(html).toContain('href="/skills/pdf-batch-processor"');
-    expect(html).toContain('href="/skills/pdf-mcp-server"');
+    // ⚠️ MCP 有自己的详情页（票 #13 补齐的路由）：链接必须跟着走，
+    //    否则非 Skill 的结果项点进去就是 404。
+    expect(html).toContain('href="/mcp/pdf-mcp-server"');
     expect(html).toContain("批量处理 PDF 工具");
   });
 
@@ -188,5 +191,35 @@ describe("检索入口约束", () => {
     expect(source).not.toMatch(/export\s+(async\s+)?function\s+\w*[Ss]earch/);
     expect(source).not.toMatch(/from\s+"@\/lib\/search-postgres"/);
     expect(source).not.toMatch(/from\s+"@\/lib\/search-service"/);
+  });
+
+  it("MCP 的页面与接口也不直接查数据库", () => {
+    // 票 #13 的 MCP 页面同样受同一条规矩约束：
+    // 列表页走 SearchService，详情页走视图模型（@/lib/mcp-detail）。
+    const entryFiles = [
+      "src/app/mcp/page.tsx",
+      "src/app/mcp/[slug]/page.tsx",
+      "src/app/api/mcp/[slug]/route.ts",
+    ];
+    const offenders: string[] = [];
+
+    for (const file of entryFiles) {
+      const source = readFileSync(path.join(REPO_ROOT, file), "utf8");
+
+      if (/from\s+"@\/lib\/prisma"/.test(source)) {
+        offenders.push(`${file}：直接 import 了 Prisma 客户端`);
+      }
+      if (/\$queryRaw|\$executeRaw|\$queryRawUnsafe/.test(source)) {
+        offenders.push(`${file}：写了原生 SQL`);
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("MCP 列表页的检索经由 SearchService", () => {
+    const source = readFileSync(path.join(REPO_ROOT, "src/app/mcp/page.tsx"), "utf8");
+
+    expect(source).toMatch(/getSearchService/);
   });
 });

@@ -124,12 +124,18 @@ export type McpRegistryAdapterOptions = {
   fetchStars?: (slugs: string[]) => Promise<Map<string, RepoStats>>;
   /// 探测工具定义的实现（测试可注入假实现）。
   discoverTools?: (url: string, transport: McpTransportType) => Promise<McpTool[] | null>;
+  /// 工具探测用的 HTTP 客户端（不给则单独造一个「不重试」的）。
+  toolHttp?: HttpClient;
   /// 工具探测的并发数。
   toolConcurrency?: number;
 };
 
+/** 单次工具探测的超时（毫秒）。 */
+export const TOOL_PROBE_TIMEOUT_MS = 10_000;
+
 export class McpRegistryAdapter implements SourceAdapter<McpRegistrySourceConfig> {
   private readonly http: HttpClient;
+  private readonly toolHttp: HttpClient;
   private readonly base: string;
   private readonly fetchStars: (slugs: string[]) => Promise<Map<string, RepoStats>>;
   private readonly discoverTools: (url: string, transport: McpTransportType) => Promise<McpTool[] | null>;
@@ -137,6 +143,11 @@ export class McpRegistryAdapter implements SourceAdapter<McpRegistrySourceConfig
 
   constructor(options: McpRegistryAdapterOptions = {}) {
     this.http = options.http ?? createHttpClient();
+    // ⚠️ 工具探测**不重试**：连不上的 server 重试 3 次只会把整轮拖慢 4 倍，
+    //    而「取不到工具」本来就是可接受的降级（下轮再来）。
+    this.toolHttp =
+      options.toolHttp ??
+      (options.http ?? createHttpClient({ timeoutMs: TOOL_PROBE_TIMEOUT_MS, retries: 0 }));
     this.base = (options.base ?? MCP_REGISTRY_BASE).replace(/\/+$/, "");
     this.fetchStars =
       options.fetchStars ?? ((slugs) => fetchRepoStats(slugs, { http: this.http }));
@@ -144,9 +155,9 @@ export class McpRegistryAdapter implements SourceAdapter<McpRegistrySourceConfig
       options.discoverTools ??
       ((url, transport) =>
         transport === "streamable-http"
-          ? discoverRemoteTools(url, { http: this.http })
+          ? discoverRemoteTools(url, { http: this.toolHttp, timeoutMs: TOOL_PROBE_TIMEOUT_MS })
           : Promise.resolve(null));
-    this.toolConcurrency = options.toolConcurrency ?? 8;
+    this.toolConcurrency = options.toolConcurrency ?? 12;
   }
 
   getName(): SourceType {
@@ -228,6 +239,11 @@ export class McpRegistryAdapter implements SourceAdapter<McpRegistrySourceConfig
       if (!parsed.nextCursor || parsed.servers.length === 0) {
         break;
       }
+      // 防呆：cursor 不变就说明上游在原地踏步，再翻下去是死循环。
+      if (parsed.nextCursor === cursor) {
+        issues.push(`registry 的 nextCursor 没有变化（${parsed.nextCursor}），停止翻页`);
+        break;
+      }
       cursor = parsed.nextCursor;
     }
 
@@ -258,27 +274,46 @@ export class McpRegistryAdapter implements SourceAdapter<McpRegistrySourceConfig
     // ③ 工具定义：对远程 server 做 MCP 握手。
     const toolsByName = new Map<string, McpTool[] | null>();
     if (discoverTools) {
-      const targets = entries
-        .filter((entry) => (entry.server.remotes ?? []).length > 0)
-        .slice(0, maxToolProbes);
+      const remoteEntries = entries.filter((entry) => (entry.server.remotes ?? []).length > 0);
+      const targets = remoteEntries.slice(0, maxToolProbes);
       let probed = 0;
       let succeeded = 0;
-      for (const entry of targets) {
-        const remote = entry.server.remotes?.[0];
-        if (!remote?.url) {
-          continue;
-        }
+
+      // ⚠️ 握手要等网络往返（慢的 server 会耗满超时），所以并发跑，
+      //    不然几百个 server 串行下来要几小时。
+      const results = await mapWithConcurrency(
+        targets,
+        this.toolConcurrency,
+        async (entry) => {
+          const remote = entry.server.remotes?.[0];
+          if (!remote?.url) {
+            return null;
+          }
+          try {
+            return await this.discoverTools(remote.url, remote.type);
+          } catch (error) {
+            // ⚠️ 单个 server 探测失败**不阻塞**整批（与「单源异常不阻塞其它源」同一条原则）。
+            issues.push(
+              `${entry.server.name} 工具探测失败：${error instanceof Error ? error.message : String(error)}`,
+            );
+            return null;
+          }
+        },
+      );
+
+      targets.forEach((entry, index) => {
         probed += 1;
-        const tools = await this.discoverTools(remote.url, remote.type);
+        const tools = results[index];
         if (tools && tools.length > 0) {
           succeeded += 1;
         }
         toolsByName.set(entry.server.name, tools);
-      }
+      });
+
       if (probed > 0) {
         issues.push(`工具定义探测：${probed} 个远程 server，${succeeded} 个取到工具清单`);
       }
-      if (targets.length < entries.filter((e) => (e.server.remotes ?? []).length > 0).length) {
+      if (targets.length < remoteEntries.length) {
         issues.push(`本轮只探测了前 ${targets.length} 个远程 server 的工具，其余留到下次`);
       }
     }
@@ -383,6 +418,35 @@ export class McpRegistryAdapter implements SourceAdapter<McpRegistrySourceConfig
       error: issues.length > 0 ? issues.join("；") : undefined,
     };
   }
+}
+
+/**
+ * 按并发上限跑一批任务，**保持输入顺序**返回结果。
+ *
+ * 单个任务失败不影响其它任务（结果就是它返回的值）。
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  run: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const limit = Math.max(1, Math.floor(concurrency));
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (;;) {
+      const index = cursor;
+      cursor += 1;
+      if (index >= items.length) {
+        return;
+      }
+      results[index] = await run(items[index] as T);
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
 }
 
 /** 解析列表响应。形状不对抛 {@link SourceStructureError}。 */
