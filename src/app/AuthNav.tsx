@@ -48,6 +48,8 @@ export function AuthNav() {
       <span className="site-nav-spacer" />
       {me?.authenticated ? (
         <>
+          {/* 注册墙只出现在「发布自己的资产」这一处（spec 约束 7）。 */}
+          <Link href="/publish">发布</Link>
           <span className="badge-muted">{me.user?.displayName ?? me.user?.email}</span>
           <button type="button" className="interaction-button" onClick={() => void logout()}>
             登出
