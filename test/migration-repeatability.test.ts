@@ -10,6 +10,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -45,6 +46,19 @@ const EXPECTED_TABLES = [
 
 function randomDatabaseName(): string {
   return `t03_mig_${randomBytes(6).toString("hex")}`;
+}
+
+/**
+ * 仓库里迁移目录的个数。
+ *
+ * 断言「迁移记录数 == 目录数」比写死数字更耐用：以后再加迁移，
+ * 这个测试不用跟着改，但它依然能抓住「迁移被重复应用」。
+ */
+function expectedMigrationCount(): number {
+  const migrationsDir = path.join(repoRoot, "prisma", "migrations");
+  return readdirSync(migrationsDir, { withFileTypes: true }).filter(
+    (entry) => entry.isDirectory(),
+  ).length;
 }
 
 function withDatabase(url: string, database: string): string {
@@ -92,11 +106,11 @@ describe("迁移可在空库上成功执行，且可重复执行", () => {
           expect(names).toContain(table);
         }
 
-        // 迁移记录只有两条（#2 的 init + #3 的全量模型），没有被重复应用。
+        // 迁移记录数 = 仓库里迁移目录的个数：没有被重复应用。
         const migrations = await client.query<{ count: string }>(
           `SELECT COUNT(*)::text AS count FROM "_prisma_migrations"`,
         );
-        expect(migrations.rows[0]?.count).toBe("2");
+        expect(migrations.rows[0]?.count).toBe(String(expectedMigrationCount()));
 
         // 许可证分层的强制执行确实挂上了（绕过服务层直接写库也拦得住）。
         const triggers = await client.query<{ tgname: string }>(
@@ -107,6 +121,9 @@ describe("迁移可在空库上成功执行，且可重复执行", () => {
         expect(triggerNames).toContain("AssetVersion_snapshot_guard");
         expect(triggerNames).toContain("PromptDetail_body_guard");
         expect(triggerNames).toContain("SkillDetail_summary_guard");
+        // 互动计数也由触发器维护（绕过服务层直接写库，计数也不漂移）。
+        expect(triggerNames).toContain("Favorite_asset_count_sync");
+        expect(triggerNames).toContain("Like_asset_count_sync");
       } finally {
         await client.end();
       }

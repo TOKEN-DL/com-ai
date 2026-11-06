@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { toAssetListItem } from "@/lib/asset-item";
 import { listAssets } from "@/lib/asset-query";
 
 // 列表要实时读库，不许被静态化。
@@ -22,18 +23,6 @@ export async function GET(request: Request): Promise<Response> {
   });
 
   return NextResponse.json({
-    items: assets.map((asset) => ({
-      slug: asset.slug,
-      displayName: asset.displayName,
-      summaryZh: asset.summaryZh,
-      license: asset.license,
-      contentTier: asset.contentTier,
-      repoOwner: asset.repoOwner,
-      repoName: asset.repoName,
-      repoUrl: asset.repoUrl,
-      heatScore: asset.heatScore,
-      installs: asset.installs,
-      stars: asset.stars,
-    })),
+    items: assets.map(toAssetListItem),
   });
 }
