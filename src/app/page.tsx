@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { checkDatabase } from "@/lib/db-status";
 
 // 首页要实时显示数据库连通状态，不许被静态化。
@@ -29,6 +31,11 @@ export default async function HomePage() {
           <dt>健康检查</dt>
           <dd>
             <code>/api/health</code>
+          </dd>
+
+          <dt>Skill 库</dt>
+          <dd>
+            <Link href="/skills">浏览已收录的 Skill</Link>
           </dd>
         </dl>
 
