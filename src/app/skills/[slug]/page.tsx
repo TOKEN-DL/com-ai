@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getSkillDetail } from "@/lib/asset-detail";
 
 import { CopyButton } from "./CopyButton";
+import { InteractionButtons } from "./InteractionButtons";
 
 // 详情要实时读库，不许被静态化。
 export const dynamic = "force-dynamic";
@@ -39,6 +40,12 @@ export default async function SkillDetailPage({
       </p>
 
       <h1>{skill.displayName}</h1>
+
+      <InteractionButtons
+        slug={skill.slug}
+        initialLikeCount={skill.likeCount}
+        initialFavoriteCount={skill.favoriteCount}
+      />
 
       {skill.summaryZh ? (
         <section className="summary">
@@ -106,6 +113,11 @@ export default async function SkillDetailPage({
           <dt>热度位</dt>
           <dd>
             {skill.heatScore} 分 · 安装 {skill.installs} · Star {skill.stars}
+          </dd>
+
+          <dt>互动</dt>
+          <dd>
+            收藏 {skill.favoriteCount} · 点赞 {skill.likeCount}
           </dd>
 
           <dt>采集源</dt>
