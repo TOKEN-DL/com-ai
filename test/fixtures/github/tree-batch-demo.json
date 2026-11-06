@@ -1,0 +1,41 @@
+{
+  "sha": "b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0",
+  "url": "https://api.github.com/repos/mattpocock/skills/git/trees/b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0",
+  "truncated": false,
+  "tree": [
+    {
+      "path": "skills",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "1111111111111111111111111111111111111111"
+    },
+    {
+      "path": "skills/grill-me",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "2222222222222222222222222222222222222222"
+    },
+    {
+      "path": "skills/grill-me/SKILL.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3333333333333333333333333333333333333333",
+      "size": 220,
+      "url": "https://api.github.com/repos/mattpocock/skills/git/blobs/3333333333333333333333333333333333333333"
+    },
+    {
+      "path": "skills/unlisted-extra",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "4444444444444444444444444444444444444444"
+    },
+    {
+      "path": "skills/unlisted-extra/SKILL.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5555555555555555555555555555555555555555",
+      "size": 200,
+      "url": "https://api.github.com/repos/mattpocock/skills/git/blobs/5555555555555555555555555555555555555555"
+    }
+  ]
+}
