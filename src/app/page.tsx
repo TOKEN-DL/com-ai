@@ -38,9 +38,14 @@ export default async function HomePage() {
             <Link href="/skills">浏览已收录的 Skill</Link>
           </dd>
 
-          <dt>搜索</dt>
+<dt>搜索</dt>
           <dd>
             <Link href="/search">按关键词找 Skill</Link>
+          </dd>
+
+          <dt>我的收藏</dt>
+          <dd>
+            <Link href="/favorites">看看收藏了什么（不用注册也能用）</Link>
           </dd>
         </dl>
 

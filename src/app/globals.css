@@ -357,3 +357,115 @@ code {
   margin-top: 1.5rem;
   font-size: 0.9rem;
 }
+
+/* ── 互动（点赞 / 收藏）───────────────────────────────────────────── */
+
+.interactions h2 {
+  font-size: 0.95rem;
+  margin: 1.5rem 0 0.5rem;
+  color: var(--muted);
+}
+
+.interaction-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.interaction-button {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.8rem;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.interaction-button:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.interaction-button[aria-pressed="true"] {
+  border-color: var(--ok);
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.interaction-button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* ── 导航栏 ──────────────────────────────────────────────────── */
+
+.site-nav {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.site-nav a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.site-nav a:hover {
+  text-decoration: underline;
+}
+
+.site-nav-spacer {
+  flex: 1;
+}
+
+/* ── 登录页 ──────────────────────────────────────────────────── */
+
+.auth-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.auth-panel-block {
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+}
+
+.auth-panel-block h2 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+}
+
+.auth-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.auth-form input {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  font: inherit;
+  font-size: 0.9rem;
+  min-width: 14rem;
+}
+
+.auth-panel-note {
+  margin-top: 0.75rem;
+}
+
+.auth-panel-note p {
+  margin: 0.35rem 0;
+}

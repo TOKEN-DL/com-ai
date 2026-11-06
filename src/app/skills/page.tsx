@@ -16,9 +16,12 @@ export default async function SkillListPage() {
   return (
     <main>
       <h1>Skill</h1>
-      <p className="lede">
+<p className="lede">
         面向中文 AI 开发者的 Agent Skill —— 收录 {assets.length} 个。
         <Link href="/search">按关键词搜索 →</Link>
+      </p>
+      <p className="breadcrumb">
+        <Link href="/favorites">我的收藏</Link>
       </p>
 
       {assets.length === 0 ? (
@@ -32,6 +35,8 @@ export default async function SkillListPage() {
                 {asset.repoOwner && asset.repoName ? `${asset.repoOwner}/${asset.repoName}` : "—"}
                 {asset.license ? ` · ${asset.license}` : ""}
                 {` · 热度 ${asset.heatScore}`}
+                {` · 收藏 ${asset.favoriteCount}`}
+                {` · 点赞 ${asset.likeCount}`}
               </span>
               {asset.summaryZh ? <p className="asset-summary">{asset.summaryZh}</p> : null}
             </li>

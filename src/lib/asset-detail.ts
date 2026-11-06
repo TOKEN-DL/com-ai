@@ -53,6 +53,10 @@ export type SkillDetailView = {
   skillPath: string | null;
   frontmatter: Record<string, unknown> | null;
   extraFiles: ExtraFileView[];
+  /// 收藏数（跨 kind 统一计数，由数据库触发器维护）。
+  favoriteCount: number;
+  /// 点赞数（跨 kind 统一计数，由数据库触发器维护）。
+  likeCount: number;
   /// 按宿主划分的安装命令。
   installCmds: InstallCommand[];
   /// 站内是否提供正文全文。
@@ -145,6 +149,8 @@ export async function getSkillDetail(slug: string): Promise<SkillDetailView | nu
     skillPath: detail?.skillPath ?? null,
     frontmatter,
     extraFiles: asExtraFiles(detail?.extraFiles),
+    favoriteCount: asset.favoriteCount,
+    likeCount: asset.likeCount,
     installCmds: asInstallCommands(detail?.installCmds),
     contentAvailable,
     contentBody: contentAvailable ? contentBody : null,
