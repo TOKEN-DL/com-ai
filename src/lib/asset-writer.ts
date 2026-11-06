@@ -88,6 +88,22 @@ export type AssetWriteInput = {
 };
 
 /**
+ * 写入事务的时限。
+ *
+ * ⚠️ Prisma 的交互式事务**默认只给 5 秒**：超时后事务会被关掉，
+ *    后面那条语句就报「Transaction already closed」。
+ *    MCP 条目要写 packages / remotes / tools / configJson 四个 JSON 字段，
+ *    实测在真实库上偶尔会超过 5 秒（600 条里偶发 1~2 条失败）。
+ *    这里放宽到 15 秒 —— 只是「最多允许跑多久」，不改变事务语义。
+ */
+const TRANSACTION_OPTIONS = {
+  /// 交互式事务的执行时限（毫秒）。
+  timeout: 15_000,
+  /// 排队等连接池的超时（毫秒）。
+  maxWait: 10_000,
+};
+
+/**
  * 写入（或按 slug 更新）一个资产。
  *
  * 幂等：同一个 slug 重复写入是更新，不会产生第二条记录。
@@ -140,7 +156,7 @@ export async function writeAsset(input: AssetWriteInput): Promise<Asset> {
     await writeDetail(tx, asset.id, input.kind, input.detail, allowSourceText);
 
     return asset;
-  });
+  }, TRANSACTION_OPTIONS);
 }
 
 type Tx = Prisma.TransactionClient;
