@@ -104,9 +104,15 @@ export type McpDetailView = {
   envVars: McpEnvVarView[];
   /// 声明的端口。
   ports: number[];
-  /// `mcpServers` 配置片段。
+  /// `mcpServers` 配置片段（server 名 → 配置项）。
   config: Record<string, unknown>;
   /// 配置片段的文本形态（一键复制直接用它）。
+  ///
+  /// ⚠️ 这里带的是**完整的** `{ "mcpServers": { ... } }` 对象，不是里面的 map：
+  ///    验收要求「复制出的配置片段能直接粘进客户端使用」——
+  ///    用户粘进 `claude_desktop_config.json` / `cursor.json` 这类配置文件时，
+  ///    客户端认的是顶层 `mcpServers` 键；只给内层 map 的话，
+  ///    用户还得自己手动包一层，不能算「直接粘」。
   configText: string;
 };
 
@@ -288,7 +294,8 @@ export async function getMcpDetail(slug: string): Promise<McpDetailView | null> 
     envVars,
     ports: detail?.ports ?? [],
     config,
-    configText: JSON.stringify(config, null, 2),
+    // 带顶层 `mcpServers` 键，粘进客户端的配置文件就能用（见 configText 的注释）。
+    configText: JSON.stringify({ mcpServers: config }, null, 2),
   };
 }
 

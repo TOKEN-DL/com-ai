@@ -213,7 +213,10 @@ describe("GET /api/mcp/{slug}", () => {
 
     const body = await response.json();
     const parsed = JSON.parse(body.configText);
-    const entry = parsed["com.pulsemcp/remote-filesystem"];
+    // 复制出去的是**完整**的客户端配置：顶层就是 `mcpServers`，
+    // 用户粘进 claude_desktop_config.json 之类就能直接用。
+    expect(Object.keys(parsed)).toEqual(["mcpServers"]);
+    const entry = parsed.mcpServers["com.pulsemcp/remote-filesystem"];
     expect(entry.command).toBe("npx");
     expect(entry.args).toEqual(["-y", "remote-filesystem-mcp-server"]);
     // env 的值用占位符而不是空串。
@@ -231,8 +234,8 @@ describe("GET /api/mcp/{slug}", () => {
 
     const body = await response.json();
     const parsed = JSON.parse(body.configText);
-    expect(parsed["ac.inference.sh/mcp"].url).toBe("https://api.inference.sh/mcp");
-    expect(parsed["ac.inference.sh/mcp"].type).toBe("http");
+    expect(parsed.mcpServers["ac.inference.sh/mcp"].url).toBe("https://api.inference.sh/mcp");
+    expect(parsed.mcpServers["ac.inference.sh/mcp"].type).toBe("http");
   });
 
   it("METADATA_ONLY 档位下结构化字段照常保留（正文被清空是设计如此）", async () => {

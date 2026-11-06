@@ -200,7 +200,7 @@ export default async function McpDetailPage({
           <>
             <div className="source-head">
               <CopyButton value={mcp.configText} label="复制 mcpServers 配置" />
-              <span className="badge-muted">粘进客户端的 mcpServers 即可</span>
+              <span className="badge-muted">整段粘进客户端的配置文件即可</span>
             </div>
             <pre className="command">{mcp.configText}</pre>
             <p className="note">
