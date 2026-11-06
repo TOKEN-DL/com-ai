@@ -60,8 +60,14 @@ const FTS_TITLE_SUMMARY = Prisma.raw(`(${ASSET_FULLTEXT_EXPRESSION})`);
 /** 正文的全文表达式。只有 FULL 档的资产才有正文。 */
 const FTS_BODY = Prisma.raw(`setweight(to_tsvector('simple', coalesce("contentBody", '')), 'C')`);
 
-/** trigram 相似度阈值。写进 SQL 字面量（不是绑定参数），Postgres 才能当常量用。 */
-const TRGM_SIMILARITY_THRESHOLD = 0.2;
+/**
+ * trigram 相似度阈值。写进 SQL 字面量（不是绑定参数），Postgres 才能当常量用。
+ *
+ * 取 0.3 —— 与 pg_trgm 自己的 `similarity_threshold` 默认值一致。
+ * 实测：无关条目与「批量处理 PDF」的相似度约 0.21（放进来就是误召回），
+ * 而真正的近似命中（PostgreSQL ↔ postgres）能到 0.5。
+ */
+const TRGM_SIMILARITY_THRESHOLD = 0.3;
 
 /** word_similarity 阈值。 */
 const TRGM_WORD_SIMILARITY_THRESHOLD = 0.5;
@@ -146,14 +152,19 @@ function buildLikeClause(q: string): Prisma.Sql {
     OR ("contentTier" = 'FULL' AND "contentBody" ILIKE ANY(ARRAY[${pattern}]::text[]))`;
 }
 
-/** pg_trgm 模糊匹配。只在查询串够长时启用。 */
+/**
+ * pg_trgm 模糊匹配。只在查询串够长时启用。
+ *
+ * 两边都套 `lower()`：`similarity()` 默认**区分大小写**，而全文检索与 ILIKE
+ * 都不区分 —— 不统一的话，「批量处理 PDF」里的 "PDF" 就匹配不上「pdf」。
+ */
 function buildTrgmClause(q: string): Prisma.Sql {
   const threshold = Prisma.raw(String(TRGM_SIMILARITY_THRESHOLD));
   const wordThreshold = Prisma.raw(String(TRGM_WORD_SIMILARITY_THRESHOLD));
 
-  return Prisma.sql`(similarity("displayName", ${q}) >= ${threshold}
-    OR similarity("slug", ${q}) >= ${threshold}
-    OR word_similarity("displayName", ${q}) >= ${wordThreshold})`;
+  return Prisma.sql`(similarity(lower("displayName"), lower(${q})) >= ${threshold}
+    OR similarity(lower("slug"), lower(${q})) >= ${threshold}
+    OR word_similarity(lower("displayName"), lower(${q})) >= ${wordThreshold})`;
 }
 
 /**
@@ -181,7 +192,7 @@ function buildScoreClause(q: string): Prisma.Sql {
   const tsquery = Prisma.sql`plainto_tsquery('simple', ${q})`;
   const fulltextTitleSummary = Prisma.sql`ts_rank_cd(${FTS_TITLE_SUMMARY}, ${tsquery}, 32)`;
   const fulltextBody = Prisma.sql`ts_rank_cd(${FTS_BODY}, ${tsquery}, 32)`;
-  const trgm = Prisma.sql`greatest(similarity("displayName", ${q}), similarity("slug", ${q}))`;
+  const trgm = Prisma.sql`greatest(similarity(lower("displayName"), lower(${q})), similarity(lower("slug"), lower(${q})))`;
   const likeHit = Prisma.sql`CASE WHEN ${buildLikeClause(q)} THEN 1 ELSE 0 END`;
 
   return Prisma.sql`(${WEIGHT_FULLTEXT} * ${fulltextTitleSummary}
@@ -202,7 +213,10 @@ function buildFilterClause(
   const parts: Prisma.Sql[] = [];
 
   if (skip !== "kind" && filters.kind.length > 0) {
-    parts.push(Prisma.sql`"kind" IN (${Prisma.join(filters.kind)})`);
+    // "kind" 是 Postgres 枚举类型，绑定参数默认按 text 传，
+    // 直接比较会报 "operator does not exist: "AssetKind" = text"，所以显式转换。
+    const kinds = filters.kind.map((value) => Prisma.sql`${value}::"AssetKind"`);
+    parts.push(Prisma.sql`"kind" IN (${Prisma.join(kinds)})`);
   }
 
   if (skip !== "license" && filters.license.length > 0) {
