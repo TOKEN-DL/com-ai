@@ -16,6 +16,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { GET as assetsRoute } from "@/app/api/assets/route";
+import { GET as searchRoute } from "@/app/api/search/route";
 import { GET as skillsRoute } from "@/app/api/skills/route";
 import { GET as mineRoute } from "@/app/api/publish/mine/route";
 import { POST as publishRoute } from "@/app/api/publish/route";
@@ -318,6 +319,22 @@ describe("自动关键词过滤", () => {
     );
     const assetsBody = (await assets.json()) as { items: unknown[] };
     expect(assetsBody.items).toHaveLength(0);
+  });
+
+  it("被下架的资产也不出现在搜索结果里", async () => {
+    const user = await createUser({ email: "spammer3@example.com" });
+    await publishRoute(
+      jsonRequest(
+        "http://localhost/api/publish",
+        publishPayload({ description: "加微信领取福利", displayName: "PDF 批处理" }),
+        user.token,
+      ),
+    );
+
+    const response = await searchRoute(new Request("http://localhost/api/search?q=PDF"));
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { items: { slug: string }[] };
+    expect(body.items.map((item) => item.slug)).not.toContain("example-my-pdf-skill");
   });
 });
 

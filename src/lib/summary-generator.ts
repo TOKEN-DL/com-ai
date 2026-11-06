@@ -139,6 +139,11 @@ export function getSummaryGenerator(): SummaryGenerator {
  *
  * 真正的实现在另一个文件里 —— 这里只做「有没有凭据」的判断，
  * 免得这个端口文件同时背上 HTTP 调用的细节。
+ *
+ * ⚠️ 两个文件互相 import（实现要端口的模板函数，端口要实现的构造器），
+ *    构成一个**运行时循环依赖**。这是安全的：两边都只在**函数体里**用对方的
+ *    绑定（模块求值阶段不碰），ESM 的 TDZ 因此不会踩到。
+ *    如果 #7 要重构这个端口，注意别把它变成「模块顶层就调用对方」的形式。
  */
 function defaultGenerator(): SummaryGenerator {
   return createDefaultSummaryGenerator();

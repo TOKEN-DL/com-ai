@@ -190,7 +190,6 @@ describe("端口的注入点", () => {
       },
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { getSummaryGenerator } = await import("@/lib/summary-generator");
     const draft = await getSummaryGenerator().generate(INPUT);
     expect(draft.summaryZh).toBe("假的");
