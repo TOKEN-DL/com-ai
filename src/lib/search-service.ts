@@ -67,8 +67,13 @@ export type SearchFilters = {
    * `null` 表示「未声明许可证」（`Asset.license IS NULL`）；不传 / 空数组 = 不限。
    */
   license?: (string | null)[];
-  /** 是否有官方版本。不传 = 不限。 */
-  official?: boolean;
+  /**
+   * 是否有官方版本。`undefined` / `null` = 不限。
+   *
+   * 用 `null` 而不是只留 `undefined`，是为了让「显式清掉这个条件」
+   * （拼筛选链接时）也有个说法。
+   */
+  official?: boolean | null;
 };
 
 /** 检索入参。 */

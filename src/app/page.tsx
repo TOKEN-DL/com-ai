@@ -37,6 +37,11 @@ export default async function HomePage() {
           <dd>
             <Link href="/skills">浏览已收录的 Skill</Link>
           </dd>
+
+          <dt>搜索</dt>
+          <dd>
+            <Link href="/search">按关键词找 Skill</Link>
+          </dd>
         </dl>
 
         {database.error ? (

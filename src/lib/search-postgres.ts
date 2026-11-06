@@ -46,7 +46,6 @@ import { ASSET_FULLTEXT_EXPRESSION } from "@/lib/search-expression";
 import type {
   NormalizedQuery,
   SearchFacetBucket,
-  SearchFacets,
   SearchHit,
   SearchQuery,
   SearchResult,
