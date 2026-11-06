@@ -43,7 +43,7 @@ export default async function McpListPage({
       <h1>MCP</h1>
       <p className="lede">
         收录自 MCP 官方 registry 的 MCP server —— 共 {result.total} 个。
-        <Link href="/search">到统一搜索里找 Skill / Prompt →</Link>
+        <Link href="/search">到统一搜索里找 Skill / Prompt / MCP →</Link>
       </p>
       <p className="breadcrumb">
         <Link href="/">← 首页</Link>
@@ -55,7 +55,7 @@ export default async function McpListPage({
           type="search"
           name="q"
           defaultValue={query.q}
-          placeholder="filesystem"
+          placeholder="server 名称或仓库"
           aria-label="关键词"
         />
         <select className="search-sort" name="sort" defaultValue={query.sort} aria-label="排序">
