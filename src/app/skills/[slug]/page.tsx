@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 
 import { getSkillDetail } from "@/lib/asset-detail";
 import { listAssetComments } from "@/lib/comments";
-import { resolveSessionUser, SESSION_COOKIE } from "@/lib/session";
+import { resolveSessionUser, SESSION_COOKIE, type SessionUser } from "@/lib/session";
 
 import { CopyButton } from "./CopyButton";
 import { CommentsSection } from "./CommentsSection";
@@ -14,6 +14,21 @@ import { VersionUpdateNotice } from "./VersionUpdateNotice";
 
 // 详情要实时读库，不许被静态化。
 export const dynamic = "force-dynamic";
+
+/**
+ * 取当前会话用户。
+ *
+ * 页面被**单独渲染**时（测试里直接调组件）没有请求上下文，`cookies()` 会抛错 ——
+ * 这时当游客处理：版本历史照常显示，更新提示交给客户端组件去问。
+ */
+async function currentSessionUser(): Promise<SessionUser | null> {
+  try {
+    const cookieStore = await cookies();
+    return await resolveSessionUser(cookieStore.get(SESSION_COOKIE)?.value ?? null);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Skill 详情页。
@@ -37,8 +52,7 @@ export default async function SkillDetailPage({
 
   // 登录用户的「更新提示」在服务端就能算（会话 cookie 随请求带上）；
   // 游客态靠设备指纹，只能由客户端补一次请求（见 VersionUpdateNotice）。
-  const cookieStore = await cookies();
-  const sessionUser = await resolveSessionUser(cookieStore.get(SESSION_COOKIE)?.value ?? null);
+  const sessionUser = await currentSessionUser();
 
   const skill = await getSkillDetail(
     slug,
@@ -163,6 +177,15 @@ export default async function SkillDetailPage({
           <dd>
             <ReportButton target="ASSET" slug={skill.slug} />
           </dd>
+
+          {skill.currentVersion ? (
+            <>
+              <dt>当前版本</dt>
+              <dd>
+                <code>{skill.currentVersion}</code>
+              </dd>
+            </>
+          ) : null}
         </dl>
       </section>
 
