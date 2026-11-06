@@ -469,3 +469,82 @@ code {
 .auth-panel-note p {
   margin: 0.35rem 0;
 }
+
+/* ── 发布页（票 #11）───────────────────────────────────────────── */
+
+.publish-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.publish-fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.6rem 1rem;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+}
+
+.publish-fields label {
+  font-size: 0.9rem;
+}
+
+.publish-fields input,
+.publish-fields select,
+.publish-fields textarea {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  font: inherit;
+  font-size: 0.9rem;
+  width: 100%;
+}
+
+.publish-fields textarea {
+  resize: vertical;
+}
+
+.publish-fields > p,
+.publish-fields > button {
+  grid-column: 1 / -1;
+}
+
+.publish-fields > button {
+  justify-self: start;
+}
+
+.publish-advanced {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.6rem 1rem;
+  align-items: center;
+  border: 1px dashed var(--line);
+  border-radius: 0.35rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.publish-advanced > summary {
+  grid-column: 1 / -1;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.publish-result {
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+}
+
+/* 窄屏改成单列，别让标签把输入框挤没。 */
+@media (max-width: 640px) {
+  .publish-fields,
+  .publish-advanced {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { toAssetListItem } from "@/lib/asset-item";
+import { VISIBLE_PUBLICATION_FILTER } from "@/lib/asset-query";
 import { prisma } from "@/lib/prisma";
 
 // 要实时读库，不许被静态化。
@@ -26,8 +27,9 @@ export async function GET(request: Request): Promise<Response> {
 
   // 已归档的条目**前端不可见**（spec 决策 4 的三档保留策略）：
   // 与 listAssets / getAssetBySlug 保持同一条口径。
+  // 被下架的用户发布（审核中 / 已拒绝）同样不可见（票 #11）。
   const assets = await prisma.asset.findMany({
-    where: { slug: { in: slugs }, archivedAt: null },
+    where: { slug: { in: slugs }, archivedAt: null, ...VISIBLE_PUBLICATION_FILTER },
   });
   const bySlug = new Map(assets.map((asset) => [asset.slug, asset]));
 

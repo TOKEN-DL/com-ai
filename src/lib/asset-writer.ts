@@ -71,6 +71,9 @@ export type AssetWriteInput = {
   publishedAt?: Date | null;
   lastSyncedAt?: Date | null;
   isOfficial?: boolean;
+  /// 当前版本（上游 commit sha，或用户发布的平台 semver）。
+  /// 二期（#16 版本管理）用这一列；一期只存不用。
+  currentVersion?: string | null;
   stars?: number;
   installs?: number;
   heatScore?: number;
@@ -112,6 +115,7 @@ export async function writeAsset(input: AssetWriteInput): Promise<Asset> {
     publishedAt: input.publishedAt ?? null,
     lastSyncedAt: input.lastSyncedAt ?? null,
     isOfficial: input.isOfficial ?? false,
+    currentVersion: input.currentVersion ?? null,
     stars: input.stars ?? 0,
     installs: input.installs ?? 0,
     heatScore: input.heatScore ?? 0,
