@@ -102,6 +102,10 @@ services:
       # 采集不在应用容器跑（唯一归属是 cron 容器）。显式关掉：
       # 应用容器一多，每个副本都采集一遍就是重复采集（正确性 bug）。
       COLLECTOR_CRON_ENABLED: "false"
+      # 中文简介生成器的凭据（票 #26）。
+      # 应用容器也要：用户发布自己的资产时同样会调摘要生成器。
+      # 不配 = 退回模板初稿（source=TEMPLATE），不阻断发布。
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
     ports:
       - "${APP_PORT:-3000}:3000"
     healthcheck:
@@ -133,6 +137,10 @@ services:
       WORKER_PORT: "3001"
       # 采集 cron 在这个容器里开。
       COLLECTOR_CRON_ENABLED: "true"
+      # 中文简介生成器的凭据（票 #26）。
+      # 采集与批量重跑都在这个容器里跑 —— 配了 key 才会写中文简介，
+      # 不配则退回模板初稿（source=TEMPLATE）。
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
       # 骨架调度表达式；采集管道（#6）按源拆成多个独立 cron。
       CRON_SCHEDULE: "${CRON_SCHEDULE:-0 * * * *}"
     healthcheck:
