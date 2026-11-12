@@ -38,6 +38,11 @@ export default async function HomePage() {
             <Link href="/skills">浏览已收录的 Skill</Link>
           </dd>
 
+          <dt>MCP 库</dt>
+          <dd>
+            <Link href="/mcp">浏览已收录的 MCP server</Link>
+          </dd>
+
 <dt>搜索</dt>
           <dd>
             <Link href="/search">按关键词找 Skill</Link>

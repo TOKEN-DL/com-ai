@@ -42,6 +42,12 @@ export type SkillDetailInput = {
 
 export type McpDetailInput = {
   transport?: string | null;
+  /// registry 里的规范 server 名（reverse-DNS）。
+  serverName?: string | null;
+  /// registry 给的原始描述。
+  serverDescription?: string | null;
+  /// 来源仓库最近一次推送的时间。
+  repoPushedAt?: Date | null;
   packages?: Prisma.InputJsonValue | null;
   remotes?: Prisma.InputJsonValue | null;
   tools?: Prisma.InputJsonValue | null;
@@ -97,6 +103,22 @@ export type AssetWriteInput = {
   heatScore?: number;
   /// 1:1 类型扩展表。
   detail?: AssetDetailInput;
+};
+
+/**
+ * 写入事务的时限。
+ *
+ * ⚠️ Prisma 的交互式事务**默认只给 5 秒**：超时后事务会被关掉，
+ *    后面那条语句就报「Transaction already closed」。
+ *    MCP 条目要写 packages / remotes / tools / configJson 四个 JSON 字段，
+ *    实测在真实库上偶尔会超过 5 秒（600 条里偶发 1~2 条失败）。
+ *    这里放宽到 15 秒 —— 只是「最多允许跑多久」，不改变事务语义。
+ */
+const TRANSACTION_OPTIONS = {
+  /// 交互式事务的执行时限（毫秒）。
+  timeout: 15_000,
+  /// 排队等连接池的超时（毫秒）。
+  maxWait: 10_000,
 };
 
 /**
@@ -200,7 +222,7 @@ export async function writeAsset(input: AssetWriteInput): Promise<Asset> {
     });
 
     return asset;
-  });
+  }, TRANSACTION_OPTIONS);
 }
 
 /** 扩展表里那份「何时用 / 怎么用」（只有 SKILL 有）。 */
@@ -344,6 +366,9 @@ async function writeDetail(
     const mcp = detail.mcp;
     const data = {
       transport: mcp.transport ?? null,
+      serverName: mcp.serverName ?? null,
+      serverDescription: mcp.serverDescription ?? null,
+      repoPushedAt: mcp.repoPushedAt ?? null,
       packages: mcp.packages ?? undefined,
       remotes: mcp.remotes ?? undefined,
       tools: mcp.tools ?? undefined,

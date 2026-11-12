@@ -1,0 +1,40 @@
+{
+  "servers": [
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "io.github.acme/weather",
+        "description": "Weather forecasts.",
+        "version": "1.2.3"
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "status": "active",
+          "publishedAt": "2026-03-01T00:00:00.000000Z",
+          "updatedAt": "2026-03-02T00:00:00.000000Z",
+          "isLatest": true
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "io.github.acme/weather",
+        "description": "Weather forecasts.",
+        "version": "1.2.2",
+        "remotes": [{ "type": "streamable-http", "url": "https://old.example.com/mcp" }]
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "status": "deprecated",
+          "publishedAt": "2026-02-01T00:00:00.000000Z",
+          "updatedAt": "2026-02-01T00:00:00.000000Z",
+          "isLatest": false
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "count": 2
+  }
+}

@@ -5,8 +5,7 @@ import { getSkillDetail } from "@/lib/asset-detail";
 import { listAssetComments } from "@/lib/comments";
 
 import { SummarySourceNote, SummaryUsage } from "@/app/SummaryUsage";
-
-import { CopyButton } from "./CopyButton";
+import { CopyButton } from "@/app/CopyButton";
 import { CommentsSection } from "./CommentsSection";
 import { InteractionButtons } from "./InteractionButtons";
 import { ReportButton } from "./ReportButton";

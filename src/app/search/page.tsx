@@ -1,7 +1,7 @@
 import type { AssetKind } from "@prisma/client";
 import Link from "next/link";
 
-import { buildSearchParams, isAssetKind, parseSearchQuery } from "@/lib/search-params";
+import { buildSearchParams, isAssetKind, parseSearchQuery, toUrlSearchParams } from "@/lib/search-params";
 import { getSearchService, type NormalizedQuery, type SearchSort } from "@/lib/search-service";
 
 import { SummaryUsage } from "@/app/SummaryUsage";
@@ -26,24 +26,19 @@ const SORT_LABELS: Record<SearchSort, string> = {
 
 const SORT_OPTIONS: SearchSort[] = ["relevance", "heat", "recent", "name"];
 
-/** 把 Next.js 给的 searchParams 对象转成 URLSearchParams。 */
-function toSearchParams(raw: Record<string, string | string[] | undefined>): URLSearchParams {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(raw)) {
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        params.append(key, item);
-      }
-    } else if (value !== undefined) {
-      params.append(key, value);
-    }
-  }
-  return params;
-}
-
 /** 在一组值里切换某个值（点已选中的 = 取消选择）。 */
 function toggle<T>(values: T[], value: T): T[] {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+}
+
+/**
+ * 详情页链接。
+ *
+ * MCP 的详情页在 `/mcp/{slug}`（票 #13 补齐的路由），
+ * 其它类型暂时仍走 `/skills/{slug}`。
+ */
+function detailHref(kind: AssetKind, slug: string): string {
+  return kind === "MCP" ? `/mcp/${slug}` : `/skills/${slug}`;
 }
 
 /** 拼一个筛选链接：改一处条件，回到第一页。 */
@@ -68,7 +63,7 @@ export default async function SearchPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const raw = await searchParams;
-  const result = await getSearchService().search(parseSearchQuery(toSearchParams(raw)));
+  const result = await getSearchService().search(parseSearchQuery(toUrlSearchParams(raw)));
   const query = result.query;
 
   return (
@@ -179,7 +174,7 @@ export default async function SearchPage({
             <ul className="asset-list">
               {result.items.map((item) => (
                 <li key={item.id}>
-                  <Link href={`/skills/${item.slug}`}>{item.displayName}</Link>
+                  <Link href={detailHref(item.kind, item.slug)}>{item.displayName}</Link>
                   <span className="asset-meta">
                     {KIND_LABELS[item.kind]}
                     {item.repoOwner && item.repoName

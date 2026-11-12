@@ -6,7 +6,9 @@
  *     pnpm collect:batch                      # 跑榜单源（默认）
  *     pnpm collect:batch --source sitemap    # 跑站点地图源
  *     pnpm collect:batch --source all        # 两个都跑
+ *     pnpm collect:batch --source mcp        # 跑 MCP 官方 registry
  *     pnpm collect:batch --max-repos 50      # 限制本轮回源多少个仓库
+ *     pnpm collect:batch --max-servers 300   # 限制本轮采多少个 MCP server
  *     pnpm collect:batch --dry-run           # 只采集不入库
  *
  * 走的是**和 cron 完全一样**的任务定义（{@link buildCollectionTasks}），
@@ -21,8 +23,12 @@ import { buildCollectionTasks } from "@/collector/collection-tasks";
 import { prisma } from "@/lib/prisma";
 
 type Options = {
-  source: "leaderboard" | "sitemap" | "all" | "retention";
+  source: "leaderboard" | "sitemap" | "all" | "retention" | "mcp";
   maxRepos?: number;
+  /// MCP 一轮最多采多少个 server。
+  maxServers?: number;
+  /// MCP 一轮最多探测多少个远程 server 的工具定义。
+  maxToolProbes?: number;
   dryRun: boolean;
 };
 
@@ -38,12 +44,13 @@ function parseArgs(argv: string[]): Options {
         value === "leaderboard" ||
         value === "sitemap" ||
         value === "all" ||
-        value === "retention"
+        value === "retention" ||
+        value === "mcp"
       ) {
         options.source = value;
       } else {
         throw new Error(
-          `--source 只能是 leaderboard / sitemap / all / retention，收到：${value}`,
+          `--source 只能是 leaderboard / sitemap / all / retention / mcp，收到：${value}`,
         );
       }
       continue;
@@ -53,6 +60,22 @@ function parseArgs(argv: string[]): Options {
       i += 1;
       if (Number.isFinite(value) && value > 0) {
         options.maxRepos = Math.floor(value);
+      }
+      continue;
+    }
+    if (arg === "--max-servers") {
+      const value = Number(argv[i + 1]);
+      i += 1;
+      if (Number.isFinite(value) && value > 0) {
+        options.maxServers = Math.floor(value);
+      }
+      continue;
+    }
+    if (arg === "--max-tool-probes") {
+      const value = Number(argv[i + 1]);
+      i += 1;
+      if (Number.isFinite(value) && value >= 0) {
+        options.maxToolProbes = Math.floor(value);
       }
       continue;
     }
@@ -79,11 +102,14 @@ async function main(): Promise<void> {
     ...(options.maxRepos === undefined
       ? {}
       : { leaderboardMaxRepos: options.maxRepos, sitemapMaxRepos: options.maxRepos }),
+    ...(options.maxServers === undefined ? {} : { mcpMaxServers: options.maxServers }),
+    ...(options.maxToolProbes === undefined ? {} : { mcpMaxToolProbes: options.maxToolProbes }),
   });
 
   const selected = tasks.filter((task) => {
     if (options.source === "all") return task.sourceType === "skills-sh";
     if (options.source === "retention") return task.id === "retention";
+    if (options.source === "mcp") return task.sourceType === "mcp-registry";
     return task.id.endsWith(options.source);
   });
 

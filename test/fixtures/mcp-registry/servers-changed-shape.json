@@ -1,0 +1,12 @@
+{
+  "_comment": "结构变更的 fixture：servers 不再是数组（上游把列表换成了对象）。采集器必须显式失败，不能静默返回空条目。",
+  "servers": {
+    "ac.inference.sh/mcp": {
+      "name": "ac.inference.sh/mcp",
+      "version": "2.0.1"
+    }
+  },
+  "metadata": {
+    "count": 1
+  }
+}

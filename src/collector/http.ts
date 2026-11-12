@@ -26,6 +26,13 @@ export type HttpRequestInit = {
   headers?: Record<string, string>;
   /// 覆盖默认超时。
   timeoutMs?: number;
+  /// HTTP 方法。默认 GET。
+  ///
+  /// MCP 的工具发现要发 JSON-RPC 的 POST，所以这里开了口；
+  /// 其它采集源全是只读的 GET，不受影响。
+  method?: string;
+  /// 请求体（字符串）。
+  body?: string;
 };
 
 export type HttpClient = (url: string, init?: HttpRequestInit) => Promise<Response>;
@@ -148,6 +155,8 @@ export function createHttpClient(options: HttpClientOptions = {}): HttpClient {
 
       try {
         const response = await fetch(url, {
+          method: init.method ?? "GET",
+          body: init.body,
           headers: {
             "User-Agent": options.userAgent ?? getRandomUserAgent(),
             ...(init.headers ?? {}),

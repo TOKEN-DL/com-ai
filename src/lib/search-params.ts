@@ -135,3 +135,25 @@ export function buildSearchParams(
 export function isAssetKind(value: string): value is AssetKind {
   return (Object.values(AssetKind) as string[]).includes(value);
 }
+
+/**
+ * Next.js 给的 `searchParams` 对象 → {@link URLSearchParams}。
+ *
+ * 页面（`/search` 与 `/mcp`）共用这一份转换：两边各写一遍再对齐，
+ * 迟早会对不上（同一个参数名在两处解析成不同的东西）。
+ */
+export function toUrlSearchParams(
+  raw: Record<string, string | string[] | undefined>,
+): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(raw)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        params.append(key, item);
+      }
+    } else if (value !== undefined) {
+      params.append(key, value);
+    }
+  }
+  return params;
+}
