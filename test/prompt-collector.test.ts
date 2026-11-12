@@ -392,4 +392,38 @@ describe("Prompt 采集适配器 —— 文件树展开", () => {
       adapter.fetch({ type: "prompt-repo", source: "bytedance/Video-As-Prompt" }),
     ).rejects.toThrow(SourceStructureError);
   });
+
+  it("一条都没采到时要显式失败，不能静默返回空", async () => {
+    // 文件树里只有一个「索引文件」（没有内联条目）→ 整个源采到 0 条。
+    const { http } = createStubHttp([
+      {
+        match: (url) =>
+          url === "https://api.github.com/repos/bytedance/Video-As-Prompt/git/trees/main?recursive=1",
+        body: () =>
+          JSON.stringify({
+            truncated: false,
+            tree: [
+              {
+                path: "examples/training/sft/cogvideox/vap_mot/validation.json",
+                type: "blob",
+              },
+            ],
+          }),
+      },
+      {
+        match: (url) => url === "https://api.github.com/repos/bytedance/Video-As-Prompt",
+        body: () => JSON.stringify({ license: { spdx_id: "Apache-2.0" } }),
+      },
+      {
+        match: (url) =>
+          url.startsWith("https://raw.githubusercontent.com/bytedance/Video-As-Prompt/main/"),
+        body: () => JSON.stringify({ root: "data/x", val_data: ["vap_data.csv"] }),
+      },
+    ]);
+
+    const adapter = new PromptRepoAdapter({ http, overrides: [] });
+    await expect(
+      adapter.fetch({ type: "prompt-repo", source: "bytedance/Video-As-Prompt" }),
+    ).rejects.toThrow(SourceStructureError);
+  });
 });

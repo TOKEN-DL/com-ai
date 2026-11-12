@@ -358,6 +358,23 @@ describe("统一搜索", () => {
     expect(html).toContain('href="/prompts/prompt-text-reviewer"');
   });
 
+  it("统一搜索页给出模态与工具/模型的筛选入口", async () => {
+    await seedPrompts();
+
+    const element = await SearchPage({ searchParams: Promise.resolve({}) });
+    const html = renderToStaticMarkup(element);
+
+    // 两个分面组都在。
+    expect(html).toContain("模态");
+    expect(html).toContain("工具 / 模型");
+    // 分面带命中数量。
+    expect(html).toContain("seedance（1）");
+    expect(html).toContain("suno（1）");
+    // 筛选链接带上参数。
+    expect(html).toContain("modality=VIDEO");
+    expect(html).toContain("tool=seedance");
+  });
+
   it("统一搜索支持按模态与工具筛选", async () => {
     await seedPrompts();
 

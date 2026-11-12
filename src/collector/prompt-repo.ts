@@ -240,6 +240,16 @@ export class PromptRepoAdapter implements SourceAdapter<PromptRepoSourceConfig> 
       issues.push(`去重掉 ${duplicates} 条正文完全相同的提示词`);
     }
 
+    // ⚠️ **一条都没采到 = 显式失败**，不能静默返回空数组。
+    //    否则上游改版（文件挪了位置、格式变了）时，采集器会安静地采到 0 条，
+    //    运维分不清是「这批源本来就没数据」还是「解析炸了」。
+    if (items.length === 0) {
+      throw new SourceStructureError(
+        definition.id,
+        `采到 0 条提示词（扫了 ${paths.length} 个文件：${paths.slice(0, 5).join(", ")}${paths.length > 5 ? " …" : ""}）`,
+      );
+    }
+
     return {
       source: definition.id,
       sourceType: this.getName(),
