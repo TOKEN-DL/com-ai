@@ -28,7 +28,9 @@ function readString(record: Record<string, unknown>, key: string): string | null
  *   2. 按声明的许可证分档（FULL / METADATA_ONLY）；
  *   3. 生成中文简介初稿（LLM 失败 → 模板降级，不阻断发布）；
  *   4. 自动关键词过滤（命中 → 状态 PENDING，已下架待抽查）；
- *   5. 写资产（唯一写入路径 `writeAsset`）+ 写发布记录。
+ *   5. 写资产（唯一写入路径 `writeAsset`）+ 写发布记录；
+ *   6. 解析依赖清单（票 #17）：清单格式非法或依赖目标不存在时**整条拒绝**，
+ *      错误消息里带字段路径与行列位置 —— 不静默忽略，也不半截入库。
  */
 export async function POST(request: Request): Promise<Response> {
   const gate = await requireVerifiedPublisher(request);
@@ -59,9 +61,10 @@ export async function POST(request: Request): Promise<Response> {
       description: readString(record, "description") ?? "",
       contentBody: readString(record, "contentBody"),
       skillPath: readString(record, "skillPath"),
-      // 二期（#16 / #17）预留字段：一期只存不用。
+      // #16 起版本号真的会被消费；#17 起依赖清单会被解析入库。
       version: readString(record, "version"),
       manifestPath: readString(record, "manifestPath"),
+      manifest: readString(record, "manifest"),
     });
 
     return NextResponse.json(
@@ -83,6 +86,13 @@ export async function POST(request: Request): Promise<Response> {
         // 审核状态。
         status: result.status,
         filtered: result.filtered,
+        // 落库的依赖关系（票 #17）：依赖了谁、版本约束是什么。
+        dependencies: result.dependencies.map((dependency) => ({
+          slug: dependency.slug,
+          displayName: dependency.displayName,
+          kind: dependency.kind,
+          constraint: dependency.constraint,
+        })),
         message:
           result.status === "PENDING"
             ? "已提交，命中自动过滤，正在等待运营抽查。"
