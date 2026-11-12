@@ -31,7 +31,7 @@
  */
 import { createHash } from "node:crypto";
 
-import type { Asset, Prisma, SummarySource } from "@prisma/client";
+import type { Prisma, SummarySource } from "@prisma/client";
 
 import { writeGeneratedSummary, writeHumanSummaryOverride } from "@/lib/asset-writer";
 import { prisma } from "@/lib/prisma";
@@ -42,6 +42,23 @@ import {
   type SummaryGenerator,
   type SummaryGeneratorInput,
 } from "@/lib/summary-generator";
+import { extractSummaryMaterial } from "@/lib/summary-material";
+
+/**
+ * 批量重跑要带上的 1:1 详情行（按资产类型取素材用，票 #26）。
+ *
+ * SKILL 的素材在 frontmatter、PROMPT 的在 modality / toolTags、
+ * MCP 的在 serverDescription —— 一张表都带不上就取不到素材。
+ */
+const REGENERATE_INCLUDE = {
+  skillDetail: true,
+  promptDetail: true,
+  scenarioDetail: true,
+  mcpDetail: true,
+} satisfies Prisma.AssetInclude;
+
+/** 批量重跑时一条资产的完整形状（带 1:1 详情行）。 */
+type RegenerateAsset = Prisma.AssetGetPayload<{ include: typeof REGENERATE_INCLUDE }>;
 
 /**
  * 生成器版本：**模型或提示词一变就把这个值 +1**。
@@ -241,6 +258,15 @@ export type RegenerateOptions = {
   ignoreCache?: boolean;
   /// 最多处理多少条。
   limit?: number;
+  /**
+   /// 同时处理多少条（默认 1 = 串行）。
+   *
+   /// 模板路线一轮几千条，串行够用；LLM 路线每条要过一次网络，
+   /// 串行会跑成小时级 —— 那时用 `--concurrency` 加快。
+   *
+   * 计数语义与串行完全一样，只是同时在飞。
+   */
+  concurrency?: number;
 };
 
 /** 批量重跑的统计。 */
@@ -265,11 +291,14 @@ export type RegenerateReport = {
  * 入口是**可复用的函数**，不是一次性脚本 ——
  * CLI 脚本、管理接口、定时任务都能调它。
  *
- * 两条硬规矩：
+ * 三条硬规矩：
  *   1. **跳过人工覆盖过的**（`summaryOverriddenAt` 非空）——
  *      「用户与运营可以覆盖，且不被批量重跑覆盖」；
  *   2. **只处理 FULL 档** —— METADATA_ONLY 没有原文可依据，
- *      不生成基于原文的简介（spec 决策 6）。
+ *      不生成基于原文的简介（spec 决策 6）；
+ *   3. **排除场景卡片**（票 #26）—— 卡片是**派生产物**：
+ *      它的简介由场景派生逻辑专门写，重跑会把那张派生出来的简介
+ *      覆盖成通用模板 —— 那是在抹掉别人的东西。
  *
  * 模型或提示词变更后怎么重跑：把 {@link SUMMARY_GENERATOR_VERSION} +1，
  * 然后调一次这个函数 —— 新版本的缓存键对不上，全部重新生成。
@@ -285,11 +314,13 @@ export async function regenerateSummaries(
   const assets = await prisma.asset.findMany({
     where: {
       contentTier: "FULL",
+      // 场景卡片是派生产物，简介归场景派生逻辑管 —— 批量重跑不碰它。
+      kind: { not: "SCENARIO" },
       ...(options.slugs && options.slugs.length > 0 ? { slug: { in: options.slugs } } : {}),
     },
     orderBy: { updatedAt: "desc" },
     take: limit,
-    include: { skillDetail: true },
+    include: REGENERATE_INCLUDE,
   });
 
   const report: RegenerateReport = {
@@ -301,26 +332,24 @@ export async function regenerateSummaries(
     failed: 0,
   };
 
-  for (const asset of assets) {
+  /** 处理一条。单条失败不影响其它条目 —— 与「单源异常不阻塞其它源」同一条原则。 */
+  async function regenerateOne(asset: RegenerateAsset): Promise<void> {
     if (skipOverridden && isHumanOverridden(asset)) {
       report.skippedOverridden += 1;
-      continue;
+      return;
     }
 
     if (!asset.contentBody) {
       report.skippedNoContent += 1;
-      continue;
+      return;
     }
 
     try {
-      const result = await generateSummary(
-        buildGeneratorInput(asset),
-        {
-          ...(deps.generator ? { generator: deps.generator } : {}),
-          generatorVersion,
-          ...(options.ignoreCache ? { ignoreCache: true } : {}),
-        },
-      );
+      const result = await generateSummary(buildGeneratorInput(asset), {
+        ...(deps.generator ? { generator: deps.generator } : {}),
+        generatorVersion,
+        ...(options.ignoreCache ? { ignoreCache: true } : {}),
+      });
 
       if (result.cached) {
         report.cached += 1;
@@ -336,38 +365,51 @@ export async function regenerateSummaries(
         summarySource: result.draft.source,
       });
     } catch {
-      // 单条失败不影响其它条目 —— 与「单源异常不阻塞其它源」同一条原则。
       report.failed += 1;
     }
   }
+
+  // 并发：默认 1（串行，语义与从前完全一致）。
+  // cursor 的自增发生在 await 之前 —— JS 单线程，同一个 worker 不会取到同一条。
+  const requested = options.concurrency ?? 1;
+  const concurrency = Number.isFinite(requested) ? Math.max(1, Math.floor(requested)) : 1;
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(concurrency, assets.length) }, async () => {
+    while (cursor < assets.length) {
+      const asset = assets[cursor];
+      cursor += 1;
+      await regenerateOne(asset);
+    }
+  });
+  await Promise.all(workers);
 
   return report;
 }
 
 /** 从库里的一条资产还原出生成器的入参。 */
-function buildGeneratorInput(
-  asset: Asset & { skillDetail: { frontmatter: Prisma.JsonValue } | null },
-): SummaryGeneratorInput {
-  const frontmatter = asset.skillDetail?.frontmatter;
-  const description =
-    typeof frontmatter === "object" &&
-    frontmatter !== null &&
-    !Array.isArray(frontmatter) &&
-    typeof (frontmatter as Record<string, unknown>).description === "string"
-      ? ((frontmatter as Record<string, unknown>).description as string)
-      : null;
+function buildGeneratorInput(asset: RegenerateAsset): SummaryGeneratorInput {
+  const material = extractSummaryMaterial({
+    kind: asset.kind,
+    skillDetail: asset.skillDetail,
+    promptDetail: asset.promptDetail,
+    scenarioDetail: asset.scenarioDetail,
+    mcpDetail: asset.mcpDetail,
+  });
 
   return {
     kind: asset.kind,
     displayName: asset.displayName,
     contentBody: asset.contentBody,
     // 与采集、发布两条路径**同一条**哈希规则：哈希简介所依据的那段文字。
-    contentHash: computeContentHash(asset.contentBody ?? description),
+    contentHash: computeContentHash(asset.contentBody ?? material.authorNote),
     sourceId: asset.sourceId,
-    description,
+    description: material.authorNote,
     repoOwner: asset.repoOwner,
     repoName: asset.repoName,
     license: asset.license,
+    // PROMPT 的模态与目标工具（票 #26）：它们才回答得了「什么时候该用它」。
+    modality: material.modality,
+    toolTags: material.toolTags,
   };
 }
 
