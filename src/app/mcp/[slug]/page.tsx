@@ -1,12 +1,30 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { describeMcpConflict } from "@/lib/mcp-conflict";
 import { getMcpDetail } from "@/lib/mcp-detail";
+import { resolveSessionUser, SESSION_COOKIE, type SessionUser } from "@/lib/session";
 
 import { CopyButton } from "@/app/CopyButton";
 
 // 详情要实时读库，不许被静态化。
 export const dynamic = "force-dynamic";
+
+/**
+ * 取当前会话用户。
+ *
+ * 页面被**单独渲染**时（测试里直接调组件）没有请求上下文，`cookies()` 会抛错 ——
+ * 这时当游客处理：没有已接入集合，也就没有冲突可报。
+ */
+async function currentSessionUser(): Promise<SessionUser | null> {
+  try {
+    const cookieStore = await cookies();
+    return await resolveSessionUser(cookieStore.get(SESSION_COOKIE)?.value ?? null);
+  } catch {
+    return null;
+  }
+}
 
 /** 日期的展示形态（站内统一用「年-月-日」）。 */
 function formatDate(value: Date | null): string {
@@ -30,6 +48,10 @@ function formatDate(value: Date | null): string {
  * ⚠️ MCP 条目一律 METADATA_ONLY（registry 不声明每个 server 的许可证），
  *    所以站内**不复制** server 的 README / 源码原文；页面展示的是
  *    registry 的结构化声明与在线探测到的工具定义。
+ *
+ * 票 #14 追加：**安装前冲突提示** —— 候选 server 与登录用户已接入的
+ * server 抢同一个环境变量名或同一个端口时，在「一键复制」之前把冲突摆出来。
+ * 没有冲突（或游客态，没有已接入集合）时**整块不渲染** —— 不制造噪音。
  */
 export default async function McpDetailPage({
   params,
@@ -37,7 +59,11 @@ export default async function McpDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const mcp = await getMcpDetail(slug);
+
+  // 冲突检测需要「你已接入了哪些 server」—— 那是登录用户才有的状态。
+  const sessionUser = await currentSessionUser();
+
+  const mcp = await getMcpDetail(slug, { userId: sessionUser?.id ?? null });
 
   if (!mcp) {
     notFound();
@@ -193,6 +219,29 @@ export default async function McpDetailPage({
           <p className="note">声明的端口：{mcp.ports.join("、")}</p>
         ) : null}
       </section>
+
+      {mcp.conflicts.length > 0 ? (
+        <section className="conflict-notice">
+          <h2>安装前冲突提示</h2>
+          <p className="conflict-intro">
+            这个 server 与你已接入的 MCP server 有冲突，装上去可能起不来，
+            或者把对方的配置盖掉：
+          </p>
+          <ul className="conflict-list">
+            {mcp.conflicts.map((conflict) => (
+              <li key={`${conflict.kind}:${conflict.name}`}>
+                <span className="bad">{conflict.kind === "ENV_VAR" ? "环境变量" : "端口"}</span>
+                <code>{conflict.kind === "ENV_VAR" ? conflict.name : conflict.port}</code>
+                <span className="conflict-detail">{describeMcpConflict(conflict)}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="note">
+            这里只做查表比对（比环境变量名与端口），不会替你改配置 ——
+            怎么处理由你决定。
+          </p>
+        </section>
+      ) : null}
 
       <section className="install">
         <h2>一键复制配置片段</h2>

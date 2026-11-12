@@ -19,6 +19,8 @@
 import type { ContentTier, SummarySource } from "@prisma/client";
 
 import { getAssetBySlug } from "@/lib/asset-query";
+import { detectMcpConflicts, type McpConflict } from "@/lib/mcp-conflict";
+import { listInstalledMcpServers } from "@/lib/mcp-install";
 
 /** 工具的一个参数（从 JSON Schema 摊平出来）。 */
 export type McpToolParamView = {
@@ -114,6 +116,17 @@ export type McpDetailView = {
   ///    客户端认的是顶层 `mcpServers` 键；只给内层 map 的话，
   ///    用户还得自己手动包一层，不能算「直接粘」。
   configText: string;
+  /// 与用户已接入集合的冲突（票 #14）。
+  ///
+  /// 游客态、没有已接入集合、或确实不冲突时都是**空数组** ——
+  /// 页面据此不展示冲突区域（不制造噪音）。
+  conflicts: McpConflict[];
+};
+
+/** 取 MCP 详情时的可选参数。 */
+export type McpDetailOptions = {
+  /// 当前登录用户。没给（或游客态）= 没有已接入集合 = 不算冲突。
+  userId?: string | null;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -244,8 +257,14 @@ export function toEnvVarViews(packages: unknown[], envVarNames: string[]): McpEn
  * 取一个 MCP server 的详情视图。
  *
  * 不是 MCP、或不存在，都返回 null。
+ *
+ * `options.userId` 给了的话，会跟该用户的「已接入集合」比一遍，
+ * 把冲突项放进视图模型（票 #14）。游客态不传 —— 已接入集合为空，不会有冲突。
  */
-export async function getMcpDetail(slug: string): Promise<McpDetailView | null> {
+export async function getMcpDetail(
+  slug: string,
+  options: McpDetailOptions = {},
+): Promise<McpDetailView | null> {
   const asset = await getAssetBySlug(slug);
   if (!asset || asset.kind !== "MCP") {
     return null;
@@ -258,6 +277,21 @@ export async function getMcpDetail(slug: string): Promise<McpDetailView | null> 
   const envVars = toEnvVarViews(packages, detail?.envVars ?? []);
   const config = asRecord(detail?.configJson) ?? {};
   const transport = detail?.transport ?? "unknown";
+
+  // 冲突检测：候选 = 这个 server 的声明，已装集合 = 用户已接入的 MCP server。
+  const conflicts = options.userId
+    ? detectMcpConflicts(
+        {
+          slug: asset.slug,
+          // ⚠️ 用扩展表里的**声明**（`McpDetail.envVars` / `ports`），
+          //    而不是展示层摊平出来的 envVars —— 摊平后的那份带 required/secret
+          //    等展示字段，比对只需要名字与端口。
+          envVars: detail?.envVars ?? [],
+          ports: detail?.ports ?? [],
+        },
+        await listInstalledMcpServers(options.userId),
+      )
+    : [];
 
   return {
     slug: asset.slug,
@@ -296,6 +330,7 @@ export async function getMcpDetail(slug: string): Promise<McpDetailView | null> 
     config,
     // 带顶层 `mcpServers` 键，粘进客户端的配置文件就能用（见 configText 的注释）。
     configText: JSON.stringify({ mcpServers: config }, null, 2),
+    conflicts,
   };
 }
 
