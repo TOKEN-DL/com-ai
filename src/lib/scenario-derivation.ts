@@ -387,9 +387,12 @@ function cleanPhrase(raw: string): string {
   const { head, prep, tail } = splitTrailingPrepositional(base);
   if (prep && countWords(tail) <= 3) {
     const strong = STRONG_PREPOSITIONS.has(prep);
-    const keep = strong ? isStrongEnough(head, true) : isStrongEnough(head, false);
-    if (keep) {
-      return head;
+    const weak = WEAK_PREPOSITIONS.has(prep);
+    if (strong || weak) {
+      const keep = strong ? isStrongEnough(head, true) : isStrongEnough(head, false);
+      if (keep) {
+        return head;
+      }
     }
   }
 

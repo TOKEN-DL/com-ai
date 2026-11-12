@@ -18,6 +18,7 @@ import type { Prisma, SummarySource } from "@prisma/client";
 import { writeAsset } from "@/lib/asset-writer";
 import { resolveContentTier } from "@/lib/license-tier";
 import { buildInstallCommands } from "@/lib/skill-install";
+import { deriveScenarioCards } from "@/lib/scenario-service";
 import {
   computeContentHash,
   generateSummary,
@@ -35,6 +36,8 @@ export type IngestReport = {
   /// 成功写入（幂等更新也算成功）的条数。
   written: number;
   failed: number;
+  /// 本次派生出来的场景卡片数（票 #12）。
+  scenarioCards: number;
 };
 
 /** 一条资产的简介（落库用）。 */
@@ -299,16 +302,36 @@ function toMcpAssetWriteInput(item: RawItem): Parameters<typeof writeAsset>[0] {
  * 批量入库。
  *
  * 单条失败不阻塞其它条目 —— 与「单源异常不阻塞其它源」是同一条原则。
+ *
+ * ## 场景卡片（票 #12）
+ *
+ * 入库成功后**顺手派生**这个资产的场景卡片：场景是从资产已有的文字
+ * （「何时用」/ frontmatter 自述）里抽出来的，不需要额外采集，
+ * 所以在入库这条路上顺手做掉最省事。
+ *
+ * 派生失败**不阻断入库**：卡片晚点还能用批量命令补上，
+ * 但一条资产的简介已经写好了，不能因为派生失败就重采一遍。
  */
 export async function ingestItems(items: RawItem[]): Promise<IngestReport> {
   const outcomes: IngestOutcome[] = [];
+  let scenarioCards = 0;
 
   for (const item of items) {
     try {
       // 简介先生成再入库：生成失败会降级成模板初稿，不会抛错阻断入库。
       const summary = await buildIngestSummary(item);
-      await writeAsset(toAssetWriteInput(item, summary));
+      const asset = await writeAsset(toAssetWriteInput(item, summary));
       outcomes.push({ slug: item.slug, ok: true });
+
+      // 只有 Skill 才有 frontmatter 自述可派生；MCP 条目跳过。
+      if (asset.kind === "SKILL") {
+        try {
+          const derived = await deriveScenarioCards(asset.id);
+          scenarioCards += derived.derived;
+        } catch {
+          // 派生失败不影响这一条资产入库（见函数头的说明）。
+        }
+      }
     } catch (error) {
       outcomes.push({
         slug: item.slug,
@@ -319,5 +342,5 @@ export async function ingestItems(items: RawItem[]): Promise<IngestReport> {
   }
 
   const written = outcomes.filter((outcome) => outcome.ok).length;
-  return { outcomes, written, failed: outcomes.length - written };
+  return { outcomes, written, failed: outcomes.length - written, scenarioCards };
 }

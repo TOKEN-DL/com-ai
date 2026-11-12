@@ -48,6 +48,11 @@ export default async function HomePage() {
             <Link href="/prompts">浏览按模态收录的提示词</Link>
           </dd>
 
+          <dt>场景卡片</dt>
+          <dd>
+            <Link href="/scenarios">「想做 X 就用这个」—— 按使用场景找 Skill</Link>
+          </dd>
+
 <dt>搜索</dt>
           <dd>
             <Link href="/search">按关键词找 Skill</Link>
