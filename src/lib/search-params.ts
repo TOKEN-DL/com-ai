@@ -33,6 +33,7 @@ const DEFAULT_PAGE_SIZE = 20;
  *   official  是否有官方版本（`true` / `false`）
  *   modality  Prompt 模态（可重复；票 #15）
  *   tool      Prompt 工具 / 模型（可重复；票 #15）
+ *   dependsOn 依赖了谁（可重复；被依赖资产的 slug，票 #17）
  *   sort      排序维度（单值）
  *   page      页码（从 1 开始）
  *   pageSize  每页条数
@@ -45,6 +46,15 @@ export function parseSearchQuery(params: URLSearchParams): SearchQuery {
       continue;
     }
     kind.push(value);
+  }
+
+  // 依赖筛选（票 #17）：值是被依赖资产的 slug（站内 slug 全小写）。
+  const dependsOn: string[] = [];
+  for (const raw of params.getAll("dependsOn")) {
+    const value = raw.trim().toLowerCase();
+    if (value.length > 0 && !dependsOn.includes(value)) {
+      dependsOn.push(value);
+    }
   }
 
   const license: (string | null)[] = [];
@@ -92,7 +102,16 @@ export function parseSearchQuery(params: URLSearchParams): SearchQuery {
 
   return {
     q: (params.get("q") ?? "").trim(),
-    filters: { kind, license, official, modality, tool },
+    filters: {
+      kind,
+      license,
+      official,
+      modality,
+      tool,
+      // 没有依赖筛选时**不出现**这个键（不是空数组）——
+      // 与检索实现归一化后的结构保持一致。
+      ...(dependsOn.length > 0 ? { dependsOn } : {}),
+    },
     sort,
     page: Number.isFinite(page) ? page : 1,
     pageSize: Number.isFinite(pageSize) ? pageSize : undefined,
@@ -108,6 +127,8 @@ export type SearchParamsPatch = {
   modality?: PromptModality[];
   /** Prompt 工具 / 模型（票 #15）。 */
   tool?: string[];
+  /// 依赖筛选（票 #17）：被依赖资产的 slug。
+  dependsOn?: string[];
   sort?: SearchSort;
   page?: number;
   pageSize?: number;
@@ -149,6 +170,11 @@ export function buildSearchParams(
   const tool = patch.tool ?? query.filters.tool;
   for (const value of tool ?? []) {
     params.append("tool", value);
+  }
+
+  // 依赖筛选（票 #17）：可重复参数。
+  for (const value of patch.dependsOn ?? query.filters.dependsOn ?? []) {
+    params.append("dependsOn", value);
   }
 
   params.set("sort", patch.sort ?? query.sort);

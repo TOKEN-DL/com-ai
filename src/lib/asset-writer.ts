@@ -25,7 +25,7 @@
  * **重新采集也不覆盖它** —— 「生成物必须可被纠正」：
  * 纠正过一次的东西不该被下一轮采集抹掉。
  */
-import { Prisma, type Asset, type AssetKind, type PromptModality, type SummarySource } from "@prisma/client";
+import { Prisma, type Asset, type AssetKind, type DependencyKind, type PromptModality, type SummarySource } from "@prisma/client";
 
 import { normalizeSpdxId, resolveContentTier } from "@/lib/license-tier";
 import { prisma } from "@/lib/prisma";
@@ -336,6 +336,61 @@ export async function writeGeneratedSummary(input: {
 }
 
 type Tx = Prisma.TransactionClient;
+
+/**
+ * 一条依赖关系（票 #17）。
+ *
+ * `kind` 是**被依赖资产的类型**（SKILL / MCP / PROMPT）；
+ * `constraint` 是发布者声明的版本约束 —— **只展示，不求解**
+ * （spec 决策 1：永久不做依赖自动求解器）。
+ */
+export type AssetDependencyInput = {
+  /// 被依赖资产的 id（`AssetDependency.toId`）。
+  toId: string;
+  /// 被依赖资产的类型。
+  kind: DependencyKind;
+  /// 版本约束（可空）。
+  constraint?: string | null;
+};
+
+/**
+ * 用一份新的依赖清单**整体替换**某个资产的依赖关系（票 #17）。
+ *
+ * ## 为什么是「整体替换」而不是「追加」
+ *
+ * 清单是发布者对「我依赖了什么」的**完整声明**。重新发布时，
+ * 清单里删掉的依赖就该消失 —— 追加式写入会让已经解除的依赖一直留着。
+ * 空清单 = 显式声明「我不依赖任何东西」，所以照样要清掉旧关系。
+ *
+ * ## 为什么在一个事务里
+ *
+ * 先删后插：中间那一刻依赖关系是空的。放在事务里，外部永远看不到
+ * 「删了还没插」的中间状态；失败就整体回滚，旧关系还在。
+ */
+export async function replaceAssetDependencies(
+  fromId: string,
+  dependencies: AssetDependencyInput[],
+): Promise<void> {
+  // 同一个目标可能被声明多次（清单解析会拦，但写入路径自己也要兜住）。
+  const unique = new Map<string, AssetDependencyInput>();
+  for (const dependency of dependencies) {
+    unique.set(`${dependency.toId}:${dependency.kind}`, dependency);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.assetDependency.deleteMany({ where: { fromId } });
+    if (unique.size > 0) {
+      await tx.assetDependency.createMany({
+        data: [...unique.values()].map((dependency) => ({
+          fromId,
+          toId: dependency.toId,
+          kind: dependency.kind,
+          constraint: dependency.constraint ?? null,
+        })),
+      });
+    }
+  });
+}
 
 /**
  * 回写资产内容（票 #16「版本管理与一键更新」）。

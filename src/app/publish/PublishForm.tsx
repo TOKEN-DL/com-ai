@@ -1,7 +1,10 @@
 "use client";
 
+import type { AssetKind } from "@prisma/client";
 import Link from "next/link";
 import { useState } from "react";
+
+import { assetDetailHref } from "@/lib/asset-item";
 
 /** 发布接口的回应（字段与 `POST /api/publish` 一致）。 */
 type PublishResult = {
@@ -14,6 +17,13 @@ type PublishResult = {
   whenToUse?: string | null;
   howToUse?: string | null;
   aiGenerated?: boolean;
+  /// 落库的依赖关系（票 #17）。
+  dependencies?: {
+    slug: string;
+    displayName: string;
+    kind: AssetKind;
+    constraint: string | null;
+  }[];
   message?: string;
   error?: string;
 };
@@ -53,6 +63,7 @@ export function PublishForm() {
   const [contentBody, setContentBody] = useState("");
   const [version, setVersion] = useState("");
   const [manifestPath, setManifestPath] = useState("");
+  const [manifest, setManifest] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<PublishResult | null>(null);
@@ -77,6 +88,7 @@ export function PublishForm() {
           contentBody: contentBody.trim() || null,
           version: version.trim() || null,
           manifestPath: manifestPath.trim() || null,
+          manifest: manifest.trim() || null,
         }),
       });
 
@@ -177,7 +189,7 @@ export function PublishForm() {
         </p>
 
         <details className="publish-advanced">
-          <summary>进阶（二期功能预留，现在填了也只是先存着）</summary>
+          <summary>进阶（版本号、依赖声明）</summary>
 
           <label htmlFor="publish-version">版本号</label>
           <input
@@ -196,8 +208,28 @@ export function PublishForm() {
             type="text"
             value={manifestPath}
             onChange={(event) => setManifestPath(event.target.value)}
-            placeholder="com-ai.manifest.json"
+            placeholder="com-ai.manifest.yaml"
           />
+          <p className="badge-muted">
+            清单在仓库里的相对路径（写清楚别人去哪找它）。
+          </p>
+
+          <label htmlFor="publish-manifest-content">依赖清单内容</label>
+          <textarea
+            id="publish-manifest-content"
+            name="manifest"
+            rows={8}
+            value={manifest}
+            onChange={(event) => setManifest(event.target.value)}
+            placeholder={
+              "dependencies:\n  - slug: pdf-batch-processor\n    kind: SKILL\n    version: \">=1.2.0\""
+            }
+          />
+          <p className="badge-muted">
+            平台约定的清单格式（YAML，JSON 也行）：顶层写 dependencies 列表，
+            每条依赖用被依赖资产在平台上的 slug 标识；version 只展示、不做版本求解。
+            格式非法会直接报错（带行号），不会悄悄忽略。
+          </p>
         </details>
 
         <button type="submit" className="interaction-button" disabled={submitting}>
@@ -249,6 +281,27 @@ export function PublishForm() {
               <>
                 <dt>怎么用</dt>
                 <dd>{result.howToUse}</dd>
+              </>
+            ) : null}
+
+            {result.dependencies && result.dependencies.length > 0 ? (
+              <>
+                <dt>依赖</dt>
+                <dd>
+                  <ul className="file-list">
+                    {result.dependencies.map((dependency) => (
+                      <li key={dependency.slug}>
+                        <Link href={assetDetailHref(dependency.kind, dependency.slug)}>
+                          {dependency.displayName}
+                        </Link>
+                        <span className="badge-muted">{dependency.kind}</span>
+                        {dependency.constraint ? (
+                          <span className="badge-muted">{dependency.constraint}</span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </dd>
               </>
             ) : null}
           </dl>

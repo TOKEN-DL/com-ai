@@ -8,6 +8,7 @@
 import type { ContentTier, SummarySource } from "@prisma/client";
 
 import { getAssetBySlug } from "@/lib/asset-query";
+import { listAssetDependencies, type AssetDependenciesView } from "@/lib/dependency-service";
 import { SKILL_HOSTS } from "@/lib/skill-install";
 import {
   getUpdateStatus,
@@ -89,6 +90,8 @@ export type SkillDetailView = {
   versions: VersionView[];
   /// 更新提示：收藏之后有没有新版本。给了 actor 才算。
   update: UpdateStatus | null;
+  /// 依赖关系（票 #17）：依赖了谁 / 被谁依赖。
+  dependencies: AssetDependenciesView;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -194,5 +197,7 @@ export async function getSkillDetail(
     currentVersion: asset.currentVersion,
     versions,
     update: actor ? await getUpdateStatus(asset.id, actor) : null,
+    // 依赖关系（票 #17）：出边 + 入边。
+    dependencies: await listAssetDependencies(asset.id),
   };
 }

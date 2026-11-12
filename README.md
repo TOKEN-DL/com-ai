@@ -103,6 +103,32 @@ Next.js（App Router）+ TypeScript + Prisma + Postgres + vitest + pnpm。
 检索用到的 SQL 表达式集中在 [`src/lib/search-expression.ts`](src/lib/search-expression.ts)，
 必须与迁移里的索引定义逐字一致 —— 详见该文件注释。
 
+## 依赖清单（发布者声明依赖）
+
+发布自己的资产时可以声明「我依赖了哪些站内资产」。清单放在仓库里
+（建议文件名 `com-ai.manifest.yaml`，**JSON 也行**），发布时把内容贴进表单：
+
+```yaml
+version: 1
+dependencies:
+  - slug: pdf-batch-processor   # 被依赖资产在平台上的 slug（必填）
+    kind: SKILL                 # 被依赖资产的类型（可选，会与实际类型交叉校验）
+    version: ">=1.2.0"          # 版本约束（可选，**只展示，不做版本求解**）
+```
+
+规则：
+
+- 依赖目标用**平台 slug** 标识，且必须**已经在平台上**——否则整条发布被拒
+  （先把它发布上来，再声明这依赖）。
+- 清单是**完整声明**：重新发布时以新清单为准，清单里删掉的依赖就解除了；
+  不带清单重新发布则保持原样。
+- 格式非法会**明确报错**（哪个字段、第几行、期望什么），不会静默忽略，
+  也不会写一半。解析规则见 [`src/lib/dependency-manifest.ts`](src/lib/dependency-manifest.ts)。
+
+依赖关系会展示在资产详情页（依赖了谁 / 被谁依赖），也可以被检索：
+`/search?dependsOn=pdf-batch-processor` 列出依赖了它的资产；
+搜「pdf」时，依赖了 PDF 工具的资产同样会被搜出来。
+
 ## 构建说明
 
 - **不跑依赖的 build scripts**（`pnpm.ignoredBuiltDependencies`）。Prisma 6.19 的

@@ -26,9 +26,20 @@
  *
  * 不做全量预审队列：新发布默认可见，否则单人运营下会立刻成为瓶颈。
  */
-import type { Asset, AssetKind, ContentTier, PublishStatus, SummarySource } from "@prisma/client";
+import { Prisma, type Asset, type AssetKind, type ContentTier, type PublishStatus, type SummarySource } from "@prisma/client";
 
-import { writeAsset } from "@/lib/asset-writer";
+import { writeAsset, replaceAssetDependencies } from "@/lib/asset-writer";
+import {
+  DependencyManifestError,
+  parseDependencyManifest,
+  toManifestSnapshot,
+  type DependencyManifest,
+} from "@/lib/dependency-manifest";
+import {
+  DependencyResolveError,
+  resolveDependencyTargets,
+  type ResolvedDependency,
+} from "@/lib/dependency-service";
 import { normalizeSpdxId, resolveContentTier } from "@/lib/license-tier";
 import { filterPublishText } from "@/lib/publish-keyword-filter";
 import { prisma } from "@/lib/prisma";
@@ -48,7 +59,11 @@ export type PublishErrorCode =
   /// 入参不合法（缺字段、仓库地址不是 GitHub 仓库……）。
   | "INVALID_INPUT"
   /// 这个仓库已经在市场里了（被别人发布过，或已被采集收录）。
-  | "SLUG_TAKEN";
+  | "SLUG_TAKEN"
+  /// 依赖清单格式非法（票 #17）。消息里有字段路径与行列位置。
+  | "INVALID_MANIFEST"
+  /// 依赖声明解析不了（目标不存在 / 自己依赖自己 / 类型对不上）（票 #17）。
+  | "INVALID_DEPENDENCY";
 
 /** 带错误码的发布错误，路由据此映射 HTTP 状态码。 */
 export class PublishError extends Error {
@@ -83,8 +98,13 @@ export type PublishAssetInput = {
   skillPath?: string | null;
   /// 可选：发布者声明的版本号（平台 semver）。**二期（#16）预留**，一期只存不用。
   version?: string | null;
-  /// 可选：仓库内依赖清单的相对路径。**二期（#17）预留**，一期只存不用。
+  /// 可选：仓库内依赖清单的相对路径（清单在仓库里的位置，平台约定的文件名）。
   manifestPath?: string | null;
+  /// 可选：依赖清单正文（票 #17）。平台约定的格式（YAML；JSON 是子集）。
+  ///
+  /// 传了 = 以这份清单为准（**整体替换**已有依赖关系，空清单 = 解除全部依赖）；
+  /// 没传 = 不动已有的依赖关系（重新发布不该把上次声明的依赖抹掉）。
+  manifest?: string | null;
 };
 
 export type PublishAssetResult = {
@@ -108,6 +128,11 @@ export type PublishAssetResult = {
   draft: SummaryDraft;
   /// 是否命中自动关键词过滤。
   filtered: boolean;
+  /// **本次解析并写入的依赖关系**（票 #17）：依赖了谁。
+  ///
+  /// 没传清单时是空数组 —— 注意这不代表「解除了依赖」：
+  /// 没传清单 = 不动已有关系（见 {@link PublishAssetInput.manifest}）。
+  dependencies: ResolvedDependency[];
 };
 
 /** 仓库引用（owner / name / 规范化的仓库地址）。 */
@@ -256,6 +281,41 @@ export async function publishAsset(
     previousStatus = mine.status;
   }
 
+  // ─── 3.5 依赖清单（票 #17）──────────────────────────────────────────
+  //
+  // ⚠️ 顺序很重要：**先解析、先把目标查出来，全部通过之后才写库**。
+  //    清单格式非法或依赖目标不存在时，整条发布在这里被拒 ——
+  //    不会留下「资产写进去了、依赖没写」这种半截数据。
+  //
+  // 没传清单 = 不动已有的依赖关系（重新发布不该把上次声明的依赖抹掉）。
+  const manifestText = (input.manifest ?? "").trim();
+  const hasManifest = manifestText.length > 0;
+
+  let manifest: DependencyManifest | null = null;
+  let resolvedDependencies: ResolvedDependency[] = [];
+
+  if (hasManifest) {
+    try {
+      manifest = parseDependencyManifest(manifestText);
+    } catch (error) {
+      if (error instanceof DependencyManifestError) {
+        throw new PublishError("INVALID_MANIFEST", error.message);
+      }
+      throw error;
+    }
+
+    try {
+      resolvedDependencies = await resolveDependencyTargets(manifest.dependencies, {
+        selfSlug: slug,
+      });
+    } catch (error) {
+      if (error instanceof DependencyResolveError) {
+        throw new PublishError("INVALID_DEPENDENCY", error.message);
+      }
+      throw error;
+    }
+  }
+
   // ─── 4. 简介初稿 ───────────────────────────────────────────────────
   const generatorInput = {
     kind,
@@ -343,6 +403,14 @@ export async function publishAsset(
   });
 
   // ─── 7. 发布记录（审核状态机所在）──────────────────────────────────
+  //
+  // 依赖清单的解析快照与内容 hash（票 #17）：
+  // 没传清单 = 不动这两列（undefined = 这一列不更新）。
+  const manifestSnapshot: Prisma.InputJsonValue | undefined = manifest
+    ? (toManifestSnapshot(manifest) as Prisma.InputJsonValue)
+    : undefined;
+  const manifestHash = hasManifest ? computeContentHash(manifestText) : undefined;
+
   const publication = await prisma.userPublishedAsset.upsert({
     where: { userId_assetId: { userId: input.userId, assetId: asset.id } },
     create: {
@@ -355,7 +423,12 @@ export async function publishAsset(
       // #16 起这列真的会被消费（平台 semver 版本）。不填版本号 = 不动它，
       // 重新发布不该把上次声明的版本抹掉。
       latestVersion: input.version ?? undefined,
+      // 同理：清单路径不填 = 不动它（#17 起这列指向真实的依赖清单）。
       manifestPath: input.manifestPath ?? null,
+      // 依赖清单的解析快照与内容 hash（票 #17）。
+      // 没传清单 = 不动这两列（undefined = 不更新这一列）。
+      dependencyManifest: manifestSnapshot,
+      manifestHash,
     },
     update: {
       note: description,
@@ -363,9 +436,28 @@ export async function publishAsset(
       filteredReason: filter.reason,
       // 审核意见**不清空** —— 发布者始终能看到运营最后一次的反馈。
       latestVersion: input.version ?? undefined,
-      manifestPath: input.manifestPath ?? null,
+      manifestPath: input.manifestPath ?? undefined,
+      // 只在**这次传了清单**时更新快照与 hash。
+      dependencyManifest: manifestSnapshot,
+      manifestHash,
     },
   });
+
+  // ─── 8. 依赖关系（票 #17）──────────────────────────────────────────
+  //
+  // 依赖关系是「清单的直接投影」：传了清单就以清单为准（整体替换，
+  // 空清单 = 解除全部依赖）；没传清单就一行都不动。
+  if (hasManifest) {
+    await replaceAssetDependencies(
+      asset.id,
+      resolvedDependencies.map((dependency) => ({
+        toId: dependency.assetId,
+        // 依赖目标是站内资产 → 类型就是它自己的类型。
+        kind: dependency.kind,
+        constraint: dependency.constraint,
+      })),
+    );
+  }
 
   // ─── 8. 版本行（票 #16）────────────────────────────────────────────
   //
@@ -403,6 +495,7 @@ export async function publishAsset(
     howToUse: stored.howToUse,
     draft,
     filtered: filter.hit,
+    dependencies: resolvedDependencies,
   };
 }
 

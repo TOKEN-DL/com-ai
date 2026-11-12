@@ -1,6 +1,7 @@
 import type { AssetKind } from "@prisma/client";
 import Link from "next/link";
 
+import { assetDetailHref } from "@/lib/asset-item";
 import { buildSearchParams, isAssetKind, isPromptModality, parseSearchQuery, toUrlSearchParams } from "@/lib/search-params";
 import { getSearchService, type NormalizedQuery, type SearchSort } from "@/lib/search-service";
 import { PROMPT_MODALITY_LABELS } from "@/lib/prompt-detail";
@@ -30,23 +31,6 @@ const SORT_OPTIONS: SearchSort[] = ["relevance", "heat", "recent", "name"];
 /** 在一组值里切换某个值（点已选中的 = 取消选择）。 */
 function toggle<T>(values: T[], value: T): T[] {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
-}
-
-/**
- * 详情页链接。
- *
- * MCP 的详情页在 `/mcp/{slug}`（票 #13 补齐的路由），
- * Prompt 的详情页在 `/prompts/{slug}`（票 #15 补齐的路由），
- * 其它类型暂时仍走 `/skills/{slug}`。
- */
-function detailHref(kind: AssetKind, slug: string): string {
-  if (kind === "MCP") {
-    return `/mcp/${slug}`;
-  }
-  if (kind === "PROMPT") {
-    return `/prompts/${slug}`;
-  }
-  return `/skills/${slug}`;
 }
 
 /** 拼一个筛选链接：改一处条件，回到第一页。 */
@@ -97,6 +81,11 @@ export default async function SearchPage({
             </option>
           ))}
         </select>
+        {/* 依赖筛选（票 #17）要跟着表单一起提交：
+            否则换个关键词就把「只看依赖了 X 的资产」悄悄丢了。 */}
+        {(query.filters.dependsOn ?? []).map((slug) => (
+          <input key={slug} type="hidden" name="dependsOn" value={slug} />
+        ))}
         <button className="copy-button" type="submit">
           搜索
         </button>
@@ -230,13 +219,23 @@ export default async function SearchPage({
             {Math.max(result.totalPages, 1)} 页。
           </p>
 
+          {/* 依赖筛选（票 #17）：当前只在看「依赖了某个资产」的条目。 */}
+          {query.filters.dependsOn && query.filters.dependsOn.length > 0 ? (
+            <p className="search-count">
+              只看依赖了 {query.filters.dependsOn.join("、")} 的资产。
+              <Link href={`/search?${buildSearchParams(query, { dependsOn: [] })}`}>
+                取消这个筛选
+              </Link>
+            </p>
+          ) : null}
+
           {result.items.length === 0 ? (
             <p className="badge-muted">没有匹配的条目，换个关键词试试。</p>
           ) : (
             <ul className="asset-list">
               {result.items.map((item) => (
                 <li key={item.id}>
-                  <Link href={detailHref(item.kind, item.slug)}>{item.displayName}</Link>
+                  <Link href={assetDetailHref(item.kind, item.slug)}>{item.displayName}</Link>
                   <span className="asset-meta">
                     {KIND_LABELS[item.kind]}
                     {item.repoOwner && item.repoName
