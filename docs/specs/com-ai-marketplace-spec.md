@@ -168,19 +168,22 @@
 - 文本类：`f/prompts.chat` 的 `prompts.csv`（实测 10,471,671 字节、**2,898 条记录**、恒 5 列、0 脏行；提示词内容 CC0 1.0，但 GitHub `spdx_id` 是 `NOASSERTION`，**须按仓库覆盖**）；中文类：`PlexPt/awesome-chatgpt-prompts-zh`（MIT，prompt 在 `prompts-zh.json`，124 条）。
 - 视频/图片类**必须单独收集**（通用文本库里没有）：`YouMind-OpenLab/awesome-seedance-2-prompts`（106 条，CC BY 4.0，须署名）、`bytedance/Video-As-Prompt`（55 个 .txt，Apache-2.0）、`ZeroLu/awesome-seedance`（MIT）、`Anil-matcha/awesome-flux-3-api-prompts`（**无 LICENSE 文件** → 只能 METADATA_ONLY）、`wide-trace/open-higgsfield`（25 条在 `data.ts`，**无 LICENSE 文件** → 只能 METADATA_ONLY）。
 - ⚠️ **通用 CSV 语料的 `type` 字段只有 TEXT / STRUCTURED / IMAGE，没有 VIDEO 与 AUDIO**；`act` 是标题不是分类。
-- **音乐类已实测确认有可用来源，四模态覆盖不需要降级**（实测明细见 `.com-ai-context/verified-music-prompts.md`）：零争议主力三家 —— `samuelgrupolimex-prog/suno-style-recipes`（**564 条**，CC0 1.0 全文，字段含 bpm/weirdness/style_influence/structure）、`naqashmunir21/awesome-suno-prompts`（**272 条唯一**，CC0 1.0 全文；README 宣称「2,000+」实为虚高 7.4 倍）、`musegen/awesome-music-prompts`（**106 条**，MIT），合计 **942 条 FULL 档正文、零署名义务**；另 `yzfly/awesome-music-prompts`（23 条，MIT）、`suno-ai-farm/awesome-ai-music-prompts`（14 条，MIT）覆盖 Stable Audio / MusicGen / MusicFX 与四平台变体。
-  - 需按仓库覆盖：`Anil-matcha/awesome-minimax-music-3-prompts`（21 条，实为 **CC BY 4.0**，`spdx_id` 却是 `NOASSERTION`）、`dimlyai/awesome-suno-resources`（实为 CC BY 4.0）、`NuNaught/suno-songwriting-skill`（实为 Apache-2.0）。
-  - **体量大但授权弱、需谨慎的两个 HF 数据集**：`nyuuzyou/suno`（数据集卡声明 659,788 行，`cc0-1.0`）、`blanchon/udio_dataset`（约 132,000 条，`cc0-1.0` **仅覆盖编纂与 JSON metadata，不覆盖音频本体**）。两者均为**第三方抓取后由上传者单方贴 CC0**，原作者未授权，强度低于作者自建的 CC0 源。
+- **音乐类已实测确认有可用来源，四模态覆盖不需要降级**（实测明细见 `.com-ai-context/verified-music-prompts.md`）：**本期只收零争议的 CC0/MIT 自建源** —— `samuelgrupolimex-prog/suno-style-recipes`（**564 条**，CC0 1.0 全文，字段含 bpm/weirdness/style_influence/structure）、`naqashmunir21/awesome-suno-prompts`（**272 条唯一**，CC0 1.0 全文；README 宣称「2,000+」实为虚高 7.4 倍）、`musegen/awesome-music-prompts`（**106 条**，MIT）、`yzfly/awesome-music-prompts`（23 条，MIT）、`suno-ai-farm/awesome-ai-music-prompts`（14 条，MIT，覆盖 Stable Audio / MusicGen / MusicFX 与四平台变体），合计 **979 条 FULL 档正文、零署名义务**。
+  - 需按仓库覆盖（若收录）：`Anil-matcha/awesome-minimax-music-3-prompts`（21 条，实为 **CC BY 4.0**，`spdx_id` 却是 `NOASSERTION`）、`dimlyai/awesome-suno-resources`（实为 CC BY 4.0）、`NuNaught/suno-songwriting-skill`（实为 Apache-2.0）。
+  - **体量大但授权弱、暂不收录的两个 HF 数据集**：`nyuuzyou/suno`（数据集卡声明 659,788 行，`cc0-1.0`）、`blanchon/udio_dataset`（约 132,000 条，`cc0-1.0` **仅覆盖编纂与 JSON metadata，不覆盖音频本体**）。两者均为**第三方抓取后由上传者单方贴 CC0**，原作者未授权，强度低于作者自建的 CC0 源。**本期只收零争议的 CC0/MIT 自建源**（上列合计 **979 条 FULL 档正文、零署名义务**）；这两个数据集留作后续增量的候选，须先解决授权强度问题。
   - 采集坑（必须遵守）：`nyuuzyou/suno` 的 `metadata_prompt` 实为**歌词**，真正可用的 style 提示词是 `metadata_tags`；该数据集含 `user_id`/`display_name`/`handle`/`avatar_image_url` 等**真实用户标识，必须全部丢弃**；`dawgshart/suno-prompt-engineering-guide` 是 MIT 仓库但 `/data/*.json` 明文声明为 **Suno, Inc. 财产、MIT 不适用**，需 **file 级分档**；`bingnin80-yy/awesome-topmediai-ai-music-prompts` 明文禁止再发布，**不得收录**。
 - 不使用 PromptBase / FlowGPT：Cloudflare 拦截且 robots 明确禁止爬虫 UA，同时属付费 marketplace，内容有版权与分成条款，不可作为可再分发语料。
 
 ### 6. 许可证分层与版权
 
-- **默认按 GitHub API 返回的 `license.spdx_id` 分流，但允许按仓库声明覆盖**（`LicensePolicy` 表按 repo 维度记录）。**判定以实际 LICENSE 文件为准，`spdx_id` 只是默认值。**
+- **默认按 GitHub API 返回的 `license.spdx_id` 分流，但允许按仓库声明覆盖**。**判定以实际 LICENSE 文件为准，`spdx_id` 只是默认值。**
+  - **覆盖粒度 = 仓库级 + 文件级**（覆盖记录含 `spdxId` 与 `appliesTo` 路径列表）。
+    - 理由（实测）：`f/prompts.chat` 是**一仓两许可**（prompt 内容 CC0-1.0、源码 MIT），只有文件级才能表达；`dawgshart/suno-prompt-engineering-guide` 是 MIT 仓库但 `/data/*.json` 明文声明为 Suno 私有数据，MIT 不适用，只有文件级才能把它挡在正文之外。
   - 理由（实测）：`f/prompts.chat` 与 `YouMind-OpenLab/awesome-seedance-2-prompts` 的 `spdx_id` 都是 `NOASSERTION`，但它们的 LICENSE 文件实际分别是 **CC0-1.0** 与 **CC BY 4.0**。只看 `spdx_id` 会让 3000+ 条本可再分发的正文被数据库触发器清空。
   - **FULL 档**（CC0 / MIT / Apache-2.0 等允许再分发的许可证）：存正文，可生成中文简介，可全文检索。
   - **METADATA_ONLY 档**（无许可证或其他限制性许可证）：只存元数据、链接与自行撰写的一句话描述，**不复制原文**，不生成基于原文的简介。
 - **CC BY 4.0 内容归 FULL 档，但页面必须署名**（作者 + 许可证标识 + 原仓库链接），否则不得收录。
+  - 署名落在 `PromptDetail.attribution` 字段（**与 `contributor` 分开**：`contributor` 是「贡献者署名」，承载不了「作者 + 许可证标识 + 原仓库链接」三合一的要求）。
 - 任何 LLM 生成的简介，页面必须标注"**AI 生成，版权归原作者**"，并保留原仓库链接与许可证标识。
 - 分层判定为纯函数，有独立单元测试。
 
