@@ -13,7 +13,7 @@
  * 为什么这样切：**结构变更必须显式失败**。上游改版时如果静默返回空数组，
  * 采集器会安静地采到 0 条，运维看不出是「这批源本来就没数据」还是「解析炸了」。
  */
-import type { AssetKind } from "@prisma/client";
+import type { AssetKind, PromptModality } from "@prisma/client";
 
 /** GitHub 仓库回源配置。 */
 export type GitHubRepoSourceConfig = {
@@ -45,7 +45,21 @@ export type SkillsShSourceConfig = {
 export type SourceConfig =
   | GitHubRepoSourceConfig
   | SkillsShSourceConfig
-  | McpRegistrySourceConfig;
+  | McpRegistrySourceConfig
+  | PromptRepoSourceConfig;
+
+/**
+ * Prompt 语料源配置（票 #15）。
+ *
+ * 语料源是**声明式**的（见 `src/collector/prompt-sources.ts` 的目录），
+ * 配置里只给源标识 —— 这样「有哪些源、各自什么许可证、什么模态、
+ * 哪些文件是 prompt」只有一份事实来源，不会散落在配置与代码两处。
+ */
+export type PromptRepoSourceConfig = {
+  type: "prompt-repo";
+  /** 语料源标识（如 `f/prompts.chat`）。 */
+  source: string;
+};
 
 /** MCP 官方 registry 来源配置（票 #13）。 */
 export type McpRegistrySourceConfig = {
@@ -119,6 +133,39 @@ export type McpItemMetadata = {
   repoSlug: string | null;
 };
 
+/** Prompt 条目的结构化字段（`kind = "PROMPT"` 时才有值）。 */
+export type PromptItemMetadata = {
+  /** 模态：文本 / 图片 / 视频 / 音乐。 */
+  modality: PromptModality;
+  /** 动作描述 / 标题（`f/prompts.chat` 的 act 字段）。 */
+  act: string | null;
+  /**
+   * 提示词正文（**逐字原文**）。
+   *
+   * ⚠️ 与 `RawItem.content` 是同一段文本 —— 两处都存是为了让
+   *    「Asset 主表正文（可检索）」与「PromptDetail 扩展表正文（展示用）」
+   *    各有各的用处，且值必须一致。
+   */
+  promptBody: string | null;
+  /** 面向开发者的说明。 */
+  forDevs: string | null;
+  /** 贡献者署名（上游自己声明的「谁贡献的」）。 */
+  contributor: string | null;
+  /** 工具 / 模型标签（Flux / Seedance / Suno …）。空数组 = 通用提示词。 */
+  toolTags: string[];
+  /**
+   * 许可证要求的署名（作者 + 许可证标识 + 原仓库链接）。
+   *
+   * ⚠️ 与 `contributor` **不是一回事**：前者来自许可证（CC BY 4.0 必须署名），
+   *    后者来自上游仓库。两者都不能替代对方。
+   */
+  attribution: string | null;
+  /** 源文件在仓库内的相对路径（许可证 override 按它匹配）。 */
+  sourcePath: string | null;
+  /** 上游自己声明的许可证（override 之前；`NOASSERTION` 也如实记下）。 */
+  detectedLicense: string | null;
+};
+
 /** 规范化条目的结构化字段。 */
 export type RawItemMetadata = {
   /// 资产类型（当前只有 SKILL）。
@@ -162,6 +209,12 @@ export type RawItemMetadata = {
    * 只有 `kind = "MCP"` 的条目才有它 —— 其它 kind 走 frontmatter 那条路。
    */
   mcp?: McpItemMetadata;
+  /**
+   * Prompt 条目的结构化字段。
+   *
+   * 只有 `kind = "PROMPT"` 的条目才有它。
+   */
+  prompt?: PromptItemMetadata;
 };
 
 /** 规范化条目。 */

@@ -62,6 +62,23 @@ export type PromptDetailInput = {
   promptBody?: string | null;
   forDevs?: string | null;
   contributor?: string | null;
+  /**
+   * 工具 / 模型标签（Flux / Seedance / Suno …，票 #15）。
+   *
+   * 空数组 = 通用提示词。
+   */
+  toolTags?: string[];
+  /**
+   * 许可证要求的署名（票 #15）。
+   *
+   * CC BY 4.0 允许再分发但**必须署名**（作者 + 许可证标识 + 原仓库链接）。
+   * ⚠️ 与 `contributor` 是两回事：`contributor` 是「这条提示词是谁贡献的」，
+   *    来自上游仓库；`attribution` 是许可证义务，**不能**互相替代。
+   *
+   * 这一列**不受 METADATA_ONLY 档位清空**：署名是许可证要求的声明，
+   * 不是「基于原文生成的内容」。METADATA_ONLY 只清 `promptBody`。
+   */
+  attribution?: string | null;
 };
 
 /**
@@ -472,6 +489,10 @@ async function writeDetail(
     promptBody: allowSourceText ? (prompt.promptBody ?? null) : null,
     forDevs: prompt.forDevs ?? null,
     contributor: prompt.contributor ?? null,
+    // 工具 / 模型标签与署名都是**元数据**，不是「基于原文生成的内容」，
+    // 所以不受 METADATA_ONLY 档位清空 —— 只有 promptBody 受约束。
+    toolTags: prompt.toolTags ?? [],
+    attribution: prompt.attribution ?? null,
   };
   await tx.promptDetail.upsert({
     where: { assetId },
