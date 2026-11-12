@@ -35,6 +35,12 @@ export type SkillDetailView = {
   /// 中文简介（现在是模板生成，#7 之后由 LLM 覆盖）。
   summaryZh: string | null;
   summarySource: SummarySource | null;
+  /// 「何时用」——什么时候该用它（票 #7）。
+  whenToUse: string | null;
+  /// 「怎么用」——装上之后怎么用（票 #7）。
+  howToUse: string | null;
+  /// 人工覆盖时间。非空 = 这段简介是人写的，批量重跑不会覆盖它。
+  summaryOverriddenAt: Date | null;
   /// 原始描述（frontmatter.description，原文不翻译）。
   description: string | null;
   /// SPDX 许可证标识。
@@ -138,6 +144,9 @@ export async function getSkillDetail(slug: string): Promise<SkillDetailView | nu
     displayName: asset.displayName,
     summaryZh: asset.summaryZh,
     summarySource: asset.summarySource,
+    whenToUse: asset.whenToUse,
+    howToUse: asset.howToUse,
+    summaryOverriddenAt: asset.summaryOverriddenAt,
     description,
     license: asset.license,
     contentTier: asset.contentTier,

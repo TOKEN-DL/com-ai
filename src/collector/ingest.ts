@@ -5,15 +5,23 @@
  *   - 许可证 → 内容档位由 {@link resolveContentTier} 唯一决定，本文件不判断许可证；
  *   - METADATA_ONLY 资产的正文由服务层与数据库触发器共同清空，本文件不绕开它。
  *
- * 摘要用**模板**生成（`summarySource = "TEMPLATE"`）：LLM 简介是 #7 的活，
- * 现在先用一句模板把「中文简介」这个位置占住，且不引用上游原文
- * ——METADATA_ONLY 档位下更不能把原文塞进摘要。
+ * ## 简介怎么来的（票 #7）
+ *
+ * - **FULL 档**：调 {@link getSummaryGenerator} 生成中文简介（带内容 hash 缓存，
+ *   同一份内容重复采集不会重复调模型）。生成失败**不阻断入库** ——
+ *   降级成模板初稿，来源标记 `TEMPLATE`。
+ * - **METADATA_ONLY 档**：**不调模型**。站内既不复制原文，也不据原文写简介
+ *   （spec 决策 6），只留一句模板说明 + 原仓库链接。
  */
-import type { Prisma } from "@prisma/client";
+import type { Prisma, SummarySource } from "@prisma/client";
 
 import { writeAsset } from "@/lib/asset-writer";
 import { resolveContentTier } from "@/lib/license-tier";
 import { buildInstallCommands } from "@/lib/skill-install";
+import {
+  computeContentHash,
+  generateSummary,
+} from "@/lib/summary-service";
 import type { RawItem } from "@/collector/types";
 
 export type IngestOutcome = {
@@ -27,6 +35,14 @@ export type IngestReport = {
   /// 成功写入（幂等更新也算成功）的条数。
   written: number;
   failed: number;
+};
+
+/** 一条资产的简介（落库用）。 */
+export type IngestSummary = {
+  summaryZh: string;
+  whenToUse: string | null;
+  howToUse: string | null;
+  summarySource: SummarySource;
 };
 
 /**
@@ -47,13 +63,61 @@ export function buildTemplateSummary(item: RawItem): string {
   return base;
 }
 
+/**
+ * 入库前生成简介（票 #7）。
+ *
+ * METADATA_ONLY 档**不调模型** —— 站内不复制原文，也不据原文写简介。
+ * FULL 档走端口（带缓存）；生成失败由 {@link generateSummary} 兜底成模板初稿。
+ */
+export async function buildIngestSummary(item: RawItem): Promise<IngestSummary> {
+  if (resolveContentTier(item.metadata.license) !== "FULL") {
+    return {
+      summaryZh: buildTemplateSummary(item),
+      whenToUse: null,
+      howToUse: null,
+      summarySource: "TEMPLATE",
+    };
+  }
+
+  const { draft } = await generateSummary({
+    kind: item.metadata.kind,
+    displayName: item.title,
+    contentBody: item.content ?? null,
+    // 内容 hash 是缓存键的一半 —— 同一份内容换个来源也不重复调模型。
+    // 哈希的必须是**简介所依据的那段文字**：有正文用正文，没有正文用作者自述。
+    contentHash: computeContentHash(item.content ?? item.metadata.description),
+    sourceId: item.metadata.sourceId,
+    description: item.metadata.description,
+    repoOwner: item.metadata.repoOwner,
+    repoName: item.metadata.repoName,
+    license: item.metadata.license,
+  });
+
+  return {
+    summaryZh: draft.summaryZh,
+    whenToUse: draft.whenToUse,
+    howToUse: draft.howToUse,
+    summarySource: draft.source,
+  };
+}
+
 /** 把一个规范化条目转成写入路径的输入。 */
-export function toAssetWriteInput(item: RawItem): Parameters<typeof writeAsset>[0] {
+export function toAssetWriteInput(
+  item: RawItem,
+  summary?: IngestSummary,
+): Parameters<typeof writeAsset>[0] {
   const installCmds = buildInstallCommands({
     owner: item.metadata.repoOwner,
     repo: item.metadata.repoName,
     skillName: item.title,
   });
+
+  const resolved = summary ?? {
+    summaryZh: buildTemplateSummary(item),
+    whenToUse: null,
+    howToUse: null,
+    summarySource: "TEMPLATE" as SummarySource,
+  };
 
   return {
     kind: item.metadata.kind,
@@ -61,8 +125,10 @@ export function toAssetWriteInput(item: RawItem): Parameters<typeof writeAsset>[
     displayName: item.title,
     license: item.metadata.license,
     contentBody: item.content ?? null,
-    summaryZh: buildTemplateSummary(item),
-    summarySource: "TEMPLATE",
+    summaryZh: resolved.summaryZh,
+    summarySource: resolved.summarySource,
+    whenToUse: resolved.whenToUse,
+    howToUse: resolved.howToUse,
     repoOwner: item.metadata.repoOwner,
     repoName: item.metadata.repoName,
     repoUrl: item.metadata.repoUrl,
@@ -96,7 +162,9 @@ export async function ingestItems(items: RawItem[]): Promise<IngestReport> {
 
   for (const item of items) {
     try {
-      await writeAsset(toAssetWriteInput(item));
+      // 简介先生成再入库：生成失败会降级成模板初稿，不会抛错阻断入库。
+      const summary = await buildIngestSummary(item);
+      await writeAsset(toAssetWriteInput(item, summary));
       outcomes.push({ slug: item.slug, ok: true });
     } catch (error) {
       outcomes.push({

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { buildSearchParams, isAssetKind, parseSearchQuery } from "@/lib/search-params";
 import { getSearchService, type NormalizedQuery, type SearchSort } from "@/lib/search-service";
 
+import { SummaryUsage } from "@/app/SummaryUsage";
+
 // 检索要实时读库，不许被静态化。
 export const dynamic = "force-dynamic";
 
@@ -188,6 +190,8 @@ export default async function SearchPage({
                     {` · 热度 ${item.heatScore}`}
                   </span>
                   {item.summaryZh ? <p className="asset-summary">{item.summaryZh}</p> : null}
+                  {/* 搜索结果项也展示「何时用」与「怎么用」（票 #7 验收标准）。 */}
+                  <SummaryUsage whenToUse={item.whenToUse} howToUse={item.howToUse} />
                 </li>
               ))}
             </ul>

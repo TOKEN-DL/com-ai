@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { getSkillDetail } from "@/lib/asset-detail";
 import { listAssetComments } from "@/lib/comments";
 
+import { SummarySourceNote, SummaryUsage } from "@/app/SummaryUsage";
+
 import { CopyButton } from "./CopyButton";
 import { CommentsSection } from "./CommentsSection";
 import { InteractionButtons } from "./InteractionButtons";
@@ -57,9 +59,29 @@ export default async function SkillDetailPage({
         <section className="summary">
           <h2>中文简介</h2>
           <p>{skill.summaryZh}</p>
-          {skill.summarySource === "LLM" ? (
-            <p className="note">AI 生成，版权归原作者</p>
+          {/* 「AI 生成，版权归原作者」/「人工撰写」/「模板生成」——
+              来源必须标出来：读者才知道这段话能不能当真、该找谁问。 */}
+          <SummarySourceNote source={skill.summarySource} />
+          {/* AI 生成的内容要能一键回到原文出处 —— 署名与原仓库链接放在一起，
+              读者不用往下翻就知道这段话依据的是哪份原文。 */}
+          {skill.summarySource === "LLM" && skill.repoUrl ? (
+            <p className="note">
+              原文与版权归属：{" "}
+              <a href={skill.repoUrl} rel="noreferrer noopener" target="_blank">
+                {repoLabel}
+              </a>
+              {skill.license ? ` · ${skill.license}` : ""}
+            </p>
           ) : null}
+        </section>
+      ) : null}
+
+      {/* 「何时用」与「怎么用」分区显示 —— 这是本平台相对 skills.sh 的核心差异：
+          外部站点的描述只回答「这个 skill 做什么」，不回答「我什么时候该用它」。 */}
+      {skill.whenToUse || skill.howToUse ? (
+        <section className="usage-section">
+          <h2>何时用 / 怎么用</h2>
+          <SummaryUsage whenToUse={skill.whenToUse} howToUse={skill.howToUse} />
         </section>
       ) : null}
 

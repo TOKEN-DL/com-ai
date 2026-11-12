@@ -27,7 +27,6 @@
  * 不做全量预审队列：新发布默认可见，否则单人运营下会立刻成为瓶颈。
  */
 import type { Asset, AssetKind, ContentTier, PublishStatus, SummarySource } from "@prisma/client";
-import { createHash } from "node:crypto";
 
 import { writeAsset } from "@/lib/asset-writer";
 import { normalizeSpdxId, resolveContentTier } from "@/lib/license-tier";
@@ -35,11 +34,11 @@ import { filterPublishText } from "@/lib/publish-keyword-filter";
 import { prisma } from "@/lib/prisma";
 import { buildInstallCommands } from "@/lib/skill-install";
 import {
-  getSummaryGenerator,
   type SummaryDraft,
   type SummaryGenerator,
   templateSummaryDraft,
 } from "@/lib/summary-generator";
+import { computeContentHash, generateSummary } from "@/lib/summary-service";
 
 /** 用户发布的资产在 Asset 表上的来源标识。 */
 export const USER_PUBLISHED_SOURCE_ID = "user";
@@ -186,11 +185,6 @@ export function buildPublishSlug(owner: string, name: string): string {
 /** 允许发布的资产类型。 */
 const PUBLISHABLE_KINDS: readonly AssetKind[] = ["SKILL", "MCP", "PROMPT"];
 
-/** 内容 hash（SHA-256，十六进制）。给端口当「这份内容」的标识用。 */
-function contentHashOf(content: string): string {
-  return createHash("sha256").update(content, "utf8").digest("hex");
-}
-
 /**
  * 发布一个资产。
  *
@@ -266,9 +260,10 @@ export async function publishAsset(
     kind,
     displayName,
     contentBody: input.contentBody ?? null,
-    // 算出来递给端口：#7 的「按内容 hash 缓存」直接用这个值。
-    // 一期不做缓存（那是 #7 的验收标准）。
-    contentHash: contentHashOf(input.contentBody ?? description),
+    // 哈希简介所依据的那段文字：有正文用正文，没有正文用作者自述。
+    // 这条规则与采集入库、批量重跑**完全一致** —— 三条路径算出来的
+    // 内容 hash 一样，缓存才能互通（票 #7）。
+    contentHash: computeContentHash(input.contentBody ?? description),
     sourceId: USER_PUBLISHED_SOURCE_ID,
     description,
     repoOwner: repo.owner,
@@ -283,7 +278,12 @@ export async function publishAsset(
 
   if (contentTier === "FULL") {
     // 可再分发：可以基于原文生成简介。
-    draft = await generateDraft(generatorInput, deps.generator ?? getSummaryGenerator());
+    // 走带缓存的生成（票 #7）：同一份内容重复发布不会重复调模型。
+    const generated = await generateSummary(
+      generatorInput,
+      deps.generator ? { generator: deps.generator } : {},
+    );
+    draft = generated.draft;
     summarySource = draft.source;
     whenToUse = draft.whenToUse;
     howToUse = draft.howToUse;
@@ -316,6 +316,9 @@ export async function publishAsset(
     contentBody: input.contentBody ?? null,
     summaryZh,
     summarySource,
+    // 「何时用 / 怎么用」的主表值（权威）；扩展表里那份是它的镜像。
+    whenToUse,
+    howToUse,
     repoOwner: repo.owner,
     repoName: repo.name,
     repoUrl: repo.url,
@@ -377,31 +380,12 @@ export async function publishAsset(
     // 回显**落库**的值，不回显草稿 —— METADATA_ONLY 档位落库的简介是
     // 用户自己写的那句话，「何时用 / 怎么用」是空的。
     summaryZh: stored.summaryZh ?? summaryZh,
-    whenToUse: stored.skillDetail?.whenToUse ?? null,
-    howToUse: stored.skillDetail?.howToUse ?? null,
+    // 「何时用 / 怎么用」读主表那份（权威值）；扩展表里的是它的镜像。
+    whenToUse: stored.whenToUse,
+    howToUse: stored.howToUse,
     draft,
     filtered: filter.hit,
   };
-}
-
-/**
- * 调简介生成器，**任何异常都不外泄** —— 降级成模板初稿。
- *
- * spec 决策 7：失败不阻断入库。这里是最后一道保险（生成器实现自己也会降级）。
- */
-async function generateDraft(
-  input: Parameters<SummaryGenerator["generate"]>[0],
-  generator: SummaryGenerator,
-): Promise<SummaryDraft> {
-  try {
-    const draft = await generator.generate(input);
-    if (!draft || typeof draft.summaryZh !== "string" || draft.summaryZh.trim().length === 0) {
-      return templateSummaryDraft(input);
-    }
-    return draft;
-  } catch {
-    return templateSummaryDraft(input);
-  }
 }
 
 /** 按 kind 组装 1:1 扩展表数据。 */

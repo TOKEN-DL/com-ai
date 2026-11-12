@@ -2,6 +2,8 @@ import Link from "next/link";
 
 import { listAssets } from "@/lib/asset-query";
 
+import { SummaryUsage } from "@/app/SummaryUsage";
+
 // 列表要实时读库，不许被静态化。
 export const dynamic = "force-dynamic";
 
@@ -39,6 +41,8 @@ export default async function SkillListPage() {
                 {` · 点赞 ${asset.likeCount}`}
               </span>
               {asset.summaryZh ? <p className="asset-summary">{asset.summaryZh}</p> : null}
+              {/* 「何时用」与「怎么用」分区显示（票 #7）。 */}
+              <SummaryUsage whenToUse={asset.whenToUse} howToUse={asset.howToUse} />
             </li>
           ))}
         </ul>
