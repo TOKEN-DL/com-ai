@@ -26,7 +26,7 @@
  *
  * 不做全量预审队列：新发布默认可见，否则单人运营下会立刻成为瓶颈。
  */
-import { Prisma, type Asset, type AssetKind, type ContentTier, type PublishStatus, type SummarySource } from "@prisma/client";
+import { Prisma, type Asset, type AssetKind, type ContentTier, type DependencyKind, type PublishStatus, type SummarySource } from "@prisma/client";
 
 import { writeAsset, replaceAssetDependencies } from "@/lib/asset-writer";
 import {
@@ -210,6 +210,28 @@ export function buildPublishSlug(owner: string, name: string): string {
 
 /** 允许发布的资产类型。 */
 const PUBLISHABLE_KINDS: readonly AssetKind[] = ["SKILL", "MCP", "PROMPT"];
+
+/**
+ * 站内资产类型 → 依赖类型（票 #17）。
+ *
+ * 依赖关系指向的是站内资产，但 `AssetDependency.kind` 的取值范围更宽
+ * （还有 PACKAGE / HOST / OTHER）。两者不是同一个枚举，要在这里对齐。
+ *
+ * 场景卡片（SCENARIO，票 #12）是**派生出来的展示物**，不是可依赖的东西 ——
+ * 真要依赖它，依赖的应该是它背后的那个 Skill。所以归到 OTHER。
+ */
+function toDependencyKind(kind: AssetKind): DependencyKind {
+  switch (kind) {
+    case "SKILL":
+      return "SKILL";
+    case "MCP":
+      return "MCP";
+    case "PROMPT":
+      return "PROMPT";
+    default:
+      return "OTHER";
+  }
+}
 
 /**
  * 发布一个资产。
@@ -453,7 +475,7 @@ export async function publishAsset(
       resolvedDependencies.map((dependency) => ({
         toId: dependency.assetId,
         // 依赖目标是站内资产 → 类型就是它自己的类型。
-        kind: dependency.kind,
+        kind: toDependencyKind(dependency.kind),
         constraint: dependency.constraint,
       })),
     );
