@@ -134,14 +134,16 @@ const DANGLING_TAIL = /\s+(?:and|or|the|a|an|to|of|in|on|at|with|for|by)$/iu;
  *
  * 例："render any video **with** HyperFrames" → "render any video"。
  */
-const STRONG_PREPOSITIONS = new Set(["with", "by", "using", "via", "from", "at", "in", "on"]);
+const STRONG_PREPOSITIONS = new Set(["with", "by", "using", "via", "at", "in", "on"]);
 
 /**
  * 「目的 / 对象」类介词：去掉之后主体可能太空，要看情况。
  *
  * 例："user wants **to** X" 去掉 "to X" 就成了 "user wants" —— 那是废话。
+ * "from" 也归这一类："transcribing subtitles **from** a video" 去掉尾巴
+ * 就只剩 "transcribing subtitles"，读起来不如原句完整。
  */
-const WEAK_PREPOSITIONS = new Set(["for", "to", "of"]);
+const WEAK_PREPOSITIONS = new Set(["for", "to", "of", "from"]);
 
 /**
  * 把一段文字切成句子。
@@ -292,10 +294,11 @@ function startsWithPredicate(text: string): boolean {
  * 从一句话里挑出场景短语。
  *
  * 流程：
- *   1. 先看有没有「何时用」子句（有就取它的内容），再把整段清洗一遍；
- *   2. 整段够短够完整 → 直接用（"wants to plan, design, or implement an A/B test"
- *      这种整体就是一个场景，硬切反而会切出 "wants to plan" 这样的半截话）；
- *   3. 整段太长 → 按并列符切开，取**第一个站得住的片段**。
+ *   1. 先看有没有「何时用」子句（有就取它的内容）；
+ *   2. 整段**没有并列符** → 直接用（"Build a deck for the team" 这种整体
+ *      就是一个场景，硬切反而会切碎）；
+ *   3. 整段是并列清单 → 按并列符切开，取**第一个站得住的片段**
+ *      （"make, edit, animate or render any video" → "animate or render any video"）。
  *
  * 「站得住」= 长度达标、含实词、英文至少 3 个词（中文至少 4 个字）、
  * 而且不是以谓语动词开头的半截话。
@@ -304,13 +307,17 @@ function startsWithPredicate(text: string): boolean {
 function pickPhrase(sentence: string): PhraseMatch | null {
   const when = matchWhenClause(sentence);
   const core = when?.core ?? sentence;
+  const withoutBrackets = stripBrackets(core);
 
-  const whole = cleanPhrase(stripBrackets(core));
-  if (whole && isViablePhrase(whole) && !startsWithPredicate(whole)) {
-    return { phrase: whole, explicit: when !== null };
+  // 整段没有并列符 → 整段就是一个场景。
+  if (!SEGMENT_SPLIT.test(withoutBrackets)) {
+    const whole = cleanPhrase(withoutBrackets);
+    if (whole && isViablePhrase(whole) && !startsWithPredicate(whole)) {
+      return { phrase: whole, explicit: when !== null };
+    }
   }
 
-  for (const segment of stripBrackets(core).split(SEGMENT_SPLIT)) {
+  for (const segment of withoutBrackets.split(SEGMENT_SPLIT)) {
     const cleaned = cleanPhrase(segment);
     if (cleaned && isViablePhrase(cleaned) && !startsWithPredicate(cleaned)) {
       return { phrase: cleaned, explicit: when !== null };
@@ -371,8 +378,8 @@ function cleanPhrase(raw: string): string {
     .trim()
     .replace(LEADING_CONNECTIVES, "")
     .replace(DANGLING_TAIL, "")
-    .replace(/^[\s,.;:、，。；：!?！？\-–—]+/u, "")
-    .replace(/[\s,.;:、，。；：!?！？\-–—]+$/u, "")
+    .replace(/^[\s,.;:、，。；：!?！？\-–—"'“”‘’「」『』]+/u, "")
+    .replace(/[\s,.;:、，。；：!?！？\-–—"'“”‘’「」『』]+$/u, "")
     .trim();
 
   if (base.length === 0) {
