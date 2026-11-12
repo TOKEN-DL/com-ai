@@ -1,0 +1,63 @@
+{
+  "name": "com-ai",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.21.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma"
+    ]
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build && pnpm run build:worker",
+    "build:worker": "node scripts/build-worker.mjs",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:studio": "prisma studio",
+    "collect:skills": "node scripts/collect-skills.mjs",
+    "collect:prompts": "node scripts/collect-prompts.mjs",
+    "collect:batch": "node scripts/collect-batch.mjs",
+    "summaries:regenerate": "node scripts/regenerate-summaries.mjs",
+    "scenarios:derive": "node scripts/derive-scenarios.mjs",
+    "sync:versions": "node scripts/sync-versions.mjs",
+    "postinstall": "node scripts/postinstall.mjs",
+    "compose:up": "docker compose up -d --build",
+    "compose:down": "docker compose down",
+    "compose:logs": "docker compose logs -f"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "jose": "^6.2.15",
+    "next": "^16.4.5",
+    "node-cron": "^4.6.0",
+    "pg": "^8.16.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "@types/pg": "^8.15.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "esbuild": "^0.28.2",
+    "eslint": "^9.39.0",
+    "eslint-config-next": "^16.4.5",
+    "prisma": "^6.19.3",
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.0"
+  }
+}

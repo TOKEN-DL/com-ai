@@ -1,0 +1,73 @@
+import Link from "next/link";
+
+import { checkDatabase } from "@/lib/db-status";
+
+// 首页要实时显示数据库连通状态，不许被静态化。
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const database = await checkDatabase();
+
+  return (
+    <main>
+      <h1>com-ai</h1>
+      <p className="lede">面向中文 AI 开发者的 Agent 资产市场 —— 环境已就绪。</p>
+
+      <section className="status">
+        <h2>环境状态</h2>
+        <dl>
+          <dt>Postgres</dt>
+          <dd>
+            {database.ok ? (
+              <span className="ok">已连通</span>
+            ) : (
+              <span className="bad">未连通</span>
+            )}
+          </dd>
+
+          <dt>探测耗时</dt>
+          <dd>{database.latencyMs === null ? "—" : `${database.latencyMs} ms`}</dd>
+
+          <dt>健康检查</dt>
+          <dd>
+            <code>/api/health</code>
+          </dd>
+
+          <dt>Skill 库</dt>
+          <dd>
+            <Link href="/skills">浏览已收录的 Skill</Link>
+          </dd>
+
+          <dt>MCP 库</dt>
+          <dd>
+            <Link href="/mcp">浏览已收录的 MCP server</Link>
+          </dd>
+
+          <dt>Prompt 库</dt>
+          <dd>
+            <Link href="/prompts">浏览按模态收录的提示词</Link>
+          </dd>
+
+          <dt>场景卡片</dt>
+          <dd>
+            <Link href="/scenarios">「想做 X 就用这个」—— 按使用场景找 Skill</Link>
+          </dd>
+
+<dt>搜索</dt>
+          <dd>
+            <Link href="/search">按关键词找 Skill</Link>
+          </dd>
+
+          <dt>我的收藏</dt>
+          <dd>
+            <Link href="/favorites">看看收藏了什么（不用注册也能用）</Link>
+          </dd>
+        </dl>
+
+        {database.error ? (
+          <p className="bad">连接失败：{database.error}</p>
+        ) : null}
+      </section>
+    </main>
+  );
+}

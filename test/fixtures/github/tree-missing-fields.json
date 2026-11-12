@@ -1,0 +1,11 @@
+{
+  "sha": "trimmed-from-recorded-anthropics-skills-tree",
+  "url": "https://api.github.com/repos/anthropics/skills/git/trees/main",
+  "truncated": false,
+  "tree": [
+    { "path": "skills/pdf", "mode": "040000", "type": "tree", "sha": "aaa", "url": "https://api.github.com/repos/anthropics/skills/git/trees/aaa" },
+    { "path": "skills/pdf/SKILL.md", "mode": "100644", "type": "blob", "sha": "bbb", "url": "https://api.github.com/repos/anthropics/skills/git/blobs/bbb", "size": 2048 },
+    { "path": "skills/pdf/reference.md", "mode": "100644", "sha": "ccc" },
+    { "path": "skills/pdf/scripts/run.sh", "mode": "100755", "type": "blob", "sha": "ddd" }
+  ]
+}

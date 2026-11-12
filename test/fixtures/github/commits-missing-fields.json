@@ -1,0 +1,14 @@
+[
+  {
+    "html_url": "https://github.com/vercel-labs/skills/commit/9f1c2b7d4e5a6f708192a3b4c5d6e7f8091a2b3c",
+    "commit": {
+      "author": {
+        "name": "Vercel",
+        "email": "support@vercel.com",
+        "date": "2025-11-04T09:12:44Z"
+      },
+      "message": "fix(find-skills): correct the install command for codex",
+      "url": "https://api.github.com/repos/vercel-labs/skills/git/commits/9f1c2b7d4e5a6f708192a3b4c5d6e7f8091a2b3c"
+    }
+  }
+]

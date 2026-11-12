@@ -1,0 +1,58 @@
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "tools": [
+      {
+        "name": "list_courses",
+        "description": "List published courses.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "token": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "Optional fallback: your agent_signup token or paired agent key."
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      },
+      {
+        "name": "list_lessons",
+        "description": "List published lessons in a course (course slug or ID).",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "course": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "description": "Course slug or ID"
+            },
+            "limit": {
+              "type": "number",
+              "description": "最多返回多少条"
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["compact", "full"],
+              "default": "compact",
+              "description": "返回详略"
+            }
+          },
+          "required": ["course"],
+          "additionalProperties": false
+        }
+      }
+    ]
+  }
+}

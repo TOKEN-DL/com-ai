@@ -1,0 +1,822 @@
+:root {
+  color-scheme: light dark;
+  --fg: #16181d;
+  --muted: #5b6472;
+  --ok: #1a7f4b;
+  --bad: #b42318;
+  --line: #d8dde5;
+  --bg: #fbfcfd;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #e8eaed;
+    --muted: #9aa4b2;
+    --ok: #4ade80;
+    --bad: #f87171;
+    --line: #2a2f38;
+    --bg: #0f1115;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+  line-height: 1.6;
+}
+
+main {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+}
+
+h1 {
+  font-size: 1.75rem;
+  margin: 0 0 0.25rem;
+}
+
+.lede {
+  color: var(--muted);
+  margin: 0 0 2rem;
+}
+
+.status {
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+}
+
+.status h2 {
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+}
+
+.status dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 1rem;
+  margin: 0;
+}
+
+.status dt {
+  color: var(--muted);
+}
+
+.status dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.ok {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.bad {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+/* ── Skill 列表页 ─────────────────────────────────────────────── */
+
+.asset-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.asset-list li {
+  border-bottom: 1px solid var(--line);
+  padding: 0.75rem 0;
+}
+
+.asset-list a {
+  font-weight: 600;
+  font-size: 1.05rem;
+  text-decoration: none;
+}
+
+.asset-list a:hover {
+  text-decoration: underline;
+}
+
+.asset-meta {
+  display: block;
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 0.15rem;
+}
+
+.asset-summary {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* ── 「何时用 / 怎么用」（票 #7）──────────────────────────────────── */
+
+/* 两栏并排；窄屏下自动竖排（见文件末尾的媒体查询）。 */
+.usage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin: 0.5rem 0 0;
+}
+
+.usage-block {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.usage-block p {
+  margin: 0.15rem 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* 「何时用」「怎么用」是分区标题，不是正文 —— 用标签样式区分开。 */
+.usage-label {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+}
+
+.usage-section .usage {
+  margin-top: 0;
+}
+
+/* ── Skill 详情页 ─────────────────────────────────────────────── */
+
+.skill-detail h2 {
+  font-size: 0.95rem;
+  margin: 1.75rem 0 0.5rem;
+  color: var(--muted);
+  text-transform: none;
+}
+
+.breadcrumb {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+}
+
+.summary p {
+  margin: 0;
+}
+
+.summary .original {
+  color: var(--muted);
+}
+
+.note {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 0.35rem !important;
+}
+
+.meta dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.4rem 1rem;
+  margin: 0;
+}
+
+.meta dt {
+  color: var(--muted);
+}
+
+.meta dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: baseline;
+}
+
+.license-badge {
+  border: 1px solid var(--ok);
+  color: var(--ok);
+  border-radius: 0.25rem;
+  padding: 0 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.badge-muted {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.install-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.install-list li {
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.install-head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.muted-code {
+  color: var(--muted);
+}
+
+.command,
+.skill-source {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.source-head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.file-list li {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.2rem 0;
+}
+
+/* 版本历史与更新提示（票 #16） */
+.version-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.version-list li {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.version-list li:last-child {
+  border-bottom: none;
+}
+
+.version-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+
+.version-changelog {
+  margin: 0.25rem 0 0;
+  white-space: pre-wrap;
+  color: var(--muted);
+}
+
+/* 依赖关系（票 #17）：两栏列表 = 出边 + 入边 */
+.dependency-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.2rem;
+}
+
+.dependency-side h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.dependency-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dependency-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.dependency-list li:last-child {
+  border-bottom: none;
+}
+
+.dependency-arrow {
+  color: var(--muted);
+}
+
+.version-update-notice {
+  margin: 0.75rem 0;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--ok);
+  border-radius: 0.4rem;
+}
+
+.version-update-notice a {
+  margin-left: 0.4rem;
+}
+
+.update-badge {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--ok);
+  border-radius: 0.25rem;
+  color: var(--ok);
+  font-size: 0.85rem;
+}
+
+.copy-button {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.copy-button:hover {
+  border-color: var(--muted);
+}
+
+/* ── MCP 安装前冲突提示（票 #14）──────────────────────────────────── */
+
+.conflict-notice {
+  margin: 1.25rem 0;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--bad);
+  border-radius: 0.5rem;
+}
+
+.conflict-notice h2 {
+  margin: 0 0 0.5rem;
+}
+
+.conflict-intro {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+}
+
+.conflict-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.conflict-list li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+  padding: 0.2rem 0;
+}
+
+.conflict-detail {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* ── 搜索页 ─────────────────────────────────────────────────── */
+
+.search-form {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0 0 1.75rem;
+}
+
+.search-input {
+  flex: 1 1 18rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+
+.search-sort {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+
+.search-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (max-width: 40rem) {
+  .search-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.facet-group h2 {
+  font-size: 0.8rem;
+  margin: 0 0 0.4rem;
+  color: var(--muted);
+  text-transform: none;
+}
+
+.facet-group + .facet-group {
+  margin-top: 1.25rem;
+}
+
+.facet-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.facet-list li {
+  margin-bottom: 0.3rem;
+  font-size: 0.9rem;
+}
+
+.facet-list a {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.facet-list a:hover {
+  text-decoration: underline;
+}
+
+.facet-selected {
+  font-weight: 600;
+  color: var(--ok);
+}
+
+.search-count {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0 0 0.75rem;
+}
+
+.pagination {
+  display: flex;
+  gap: 1rem;
+  align-items: baseline;
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+}
+
+/* ── 互动（点赞 / 收藏）───────────────────────────────────────────── */
+
+.interactions h2 {
+  font-size: 0.95rem;
+  margin: 1.5rem 0 0.5rem;
+  color: var(--muted);
+}
+
+.interaction-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.interaction-button {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.8rem;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.interaction-button:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.interaction-button[aria-pressed="true"] {
+  border-color: var(--ok);
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.interaction-button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* ── 导航栏 ──────────────────────────────────────────────────── */
+
+.site-nav {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.site-nav a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.site-nav a:hover {
+  text-decoration: underline;
+}
+
+.site-nav-spacer {
+  flex: 1;
+}
+
+/* ── 登录页 ──────────────────────────────────────────────────── */
+
+.auth-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.auth-panel-block {
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+}
+
+.auth-panel-block h2 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+}
+
+.auth-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.auth-form input {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  font: inherit;
+  font-size: 0.9rem;
+  min-width: 14rem;
+}
+
+.auth-panel-note {
+  margin-top: 0.75rem;
+}
+
+.auth-panel-note p {
+  margin: 0.35rem 0;
+}
+
+/* ── 评论与举报（票 #10）───────────────────────────────────────── */
+
+.comments h2 {
+  font-size: 0.95rem;
+  margin: 1.75rem 0 0.5rem;
+  color: var(--muted);
+}
+
+.comment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.comment-item {
+  border-bottom: 1px solid var(--line);
+  padding: 0.75rem 0;
+}
+
+.comment-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: baseline;
+  font-size: 0.85rem;
+}
+
+.comment-author {
+  font-weight: 600;
+}
+
+.comment-time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.comment-body {
+  margin: 0.35rem 0;
+  /* 正文里的换行要保留，所以用 pre-wrap 而不是默认的 normal。 */
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.comment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.35rem 0;
+}
+
+.comment-composer {
+  margin: 0.75rem 0;
+}
+
+.comment-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 0.4rem;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+
+.reply-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding-left: 1rem;
+  border-left: 2px solid var(--line);
+}
+
+.reply-item {
+  border-bottom: none;
+  padding: 0.5rem 0;
+}
+
+.report-wrap {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.report-field {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.report-field select,
+.report-field input {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 0.35rem;
+  padding: 0.25rem 0.4rem;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+/* ── 运营入口（票 #10）─────────────────────────────────────────── */
+
+.ops-panel {
+  margin-top: 1rem;
+}
+
+.ops-panel .comment-list {
+  margin-top: 1rem;
+}
+
+/* ── 发布页（票 #11）───────────────────────────────────────────── */
+
+.publish-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.publish-fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.6rem 1rem;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+}
+
+.publish-fields label {
+  font-size: 0.9rem;
+}
+
+.publish-fields input,
+.publish-fields select,
+.publish-fields textarea {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  font: inherit;
+  font-size: 0.9rem;
+  width: 100%;
+}
+
+.publish-fields textarea {
+  resize: vertical;
+}
+
+.publish-fields > p,
+.publish-fields > button {
+  grid-column: 1 / -1;
+}
+
+.publish-fields > button {
+  justify-self: start;
+}
+
+.publish-advanced {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.6rem 1rem;
+  align-items: center;
+  border: 1px dashed var(--line);
+  border-radius: 0.35rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.publish-advanced > summary {
+  grid-column: 1 / -1;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.publish-result {
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+}
+
+/* 窄屏改成单列，别让标签把输入框挤没。 */
+@media (max-width: 640px) {
+  .publish-fields,
+  .publish-advanced {
+    grid-template-columns: 1fr;
+  }
+}

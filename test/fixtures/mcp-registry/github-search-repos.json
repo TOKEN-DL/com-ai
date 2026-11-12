@@ -1,0 +1,39 @@
+{
+  "total_count": 3,
+  "incomplete_results": false,
+  "items": [
+    {
+      "name": "mcp-servers",
+      "full_name": "pulsemcp/mcp-servers",
+      "private": false,
+      "html_url": "https://github.com/pulsemcp/mcp-servers",
+      "description": "A collection of MCP servers",
+      "stargazers_count": 81,
+      "pushed_at": "2026-10-09T17:32:15Z",
+      "updated_at": "2026-10-09T17:32:15Z",
+      "license": { "key": "mit", "spdx_id": "MIT" }
+    },
+    {
+      "name": "tandem",
+      "full_name": "frumu-ai/tandem",
+      "private": false,
+      "html_url": "https://github.com/frumu-ai/tandem",
+      "description": "Tandem",
+      "stargazers_count": 125,
+      "pushed_at": "2026-10-06T06:26:14Z",
+      "updated_at": "2026-10-06T06:26:14Z",
+      "license": { "key": "mit", "spdx_id": "MIT" }
+    },
+    {
+      "name": "servers",
+      "full_name": "modelcontextprotocol/servers",
+      "private": false,
+      "html_url": "https://github.com/modelcontextprotocol/servers",
+      "description": "Model Context Protocol servers",
+      "stargazers_count": 91817,
+      "pushed_at": "2026-11-05T06:26:00Z",
+      "updated_at": "2026-11-05T06:26:00Z",
+      "license": { "key": "mit", "spdx_id": "MIT" }
+    }
+  ]
+}

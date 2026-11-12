@@ -1,0 +1,20 @@
+# Caddy 反向代理配置
+#
+# 容器内监听 8080（非 root 也能绑），宿主机端口由 compose 的 HTTP_PORT 决定。
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	encode zstd gzip
+	reverse_proxy app:3000 {
+		# 丢掉客户端自带的 X-Forwarded-For，改写成 Caddy 亲眼看到的对端地址。
+		#
+		# 为什么必须改写：游客态的 IP 限流靠这个头拿真实来源 IP。
+		# 客户端可以自己编 X-Forwarded-For，不改写就等于限流可以被绕过。
+		# 应用侧只认最右一跳（见 src/lib/guest-identity.ts），改写之后
+		# 那一跳必然是我们自己写进去的真实地址。
+		header_up X-Forwarded-For {http.request.remote.host}
+	}
+}

@@ -1,0 +1,8 @@
+# 录制的 fixture 必须保持原样。
+#
+# 原因：test/fixtures/github/*.md 是上游 raw.githubusercontent.com 的**原文快照**，
+# 上游是 LF。换行符一被转换，「与上游逐字一致」就不再成立。
+# test/fixtures/**/*.json 是 GitHub API 的**原始响应体**，同样按原样存。
+#
+# -text = Git 不做任何换行符转换（存什么样，签出什么样）。
+test/fixtures/** -text

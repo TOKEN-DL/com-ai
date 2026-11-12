@@ -1,0 +1,47 @@
+{
+  "_comment": "字段缺失的 fixture：packages / remotes / repository / environmentVariables / runtimeArguments 整个不存在。条目仍要入库（缺的就是没有，不能编造）。",
+  "servers": [
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "io.github.bare/minimal",
+        "description": "只有最基本字段的条目。",
+        "version": "0.0.1"
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "status": "active",
+          "publishedAt": "2026-04-01T00:00:00.000000Z",
+          "updatedAt": "2026-04-01T00:00:00.000000Z",
+          "isLatest": true
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "io.github.bare/package-without-env",
+        "description": "有 packages，但 environmentVariables 与 runtimeArguments 都不存在。",
+        "version": "0.0.2",
+        "packages": [
+          {
+            "registryType": "npm",
+            "identifier": "bare-mcp-server",
+            "transport": { "type": "stdio" }
+          }
+        ]
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "status": "active",
+          "publishedAt": "2026-04-02T00:00:00.000000Z",
+          "updatedAt": "2026-04-02T00:00:00.000000Z",
+          "isLatest": true
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "count": 2
+  }
+}

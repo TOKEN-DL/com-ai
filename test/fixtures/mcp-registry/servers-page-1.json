@@ -1,0 +1,272 @@
+{
+  "servers": [
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "ac.inference.sh/mcp",
+        "description": "MCP server for remote filesystem operations on cloud storage (Google Cloud Storage).",
+        "title": "Inference.sh MCP",
+        "version": "2.0.1",
+        "websiteUrl": "https://inference.sh",
+        "repository": {
+          "url": "https://github.com/pulsemcp/mcp-servers",
+          "source": "github",
+          "subfolder": "experimental/remote-filesystem"
+        },
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://api.inference.sh/mcp"
+          }
+        ]
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "status": "active",
+          "statusChangedAt": "2026-06-26T14:07:53.723164Z",
+          "publishedAt": "2026-06-26T14:07:53.723164Z",
+          "updatedAt": "2026-10-09T17:32:15.000000Z",
+          "isLatest": true
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "com.pulsemcp/remote-filesystem",
+        "description": "MCP server for remote filesystem operations on cloud storage (Google Cloud Storage).",
+        "version": "0.1.5",
+        "repository": {
+          "url": "https://github.com/pulsemcp/mcp-servers",
+          "source": "github",
+          "subfolder": "experimental/remote-filesystem"
+        },
+        "packages": [
+          {
+            "registryType": "npm",
+            "registryBaseUrl": "https://registry.npmjs.org",
+            "identifier": "remote-filesystem-mcp-server",
+            "version": "0.1.5",
+            "runtimeHint": "npx",
+            "transport": { "type": "stdio" },
+            "runtimeArguments": [{ "type": "positional", "value": "-y" }],
+            "environmentVariables": [
+              { "description": "Google Cloud Storage bucket name.", "isRequired": true, "name": "GCS_BUCKET" },
+              { "description": "Google Cloud project ID.", "name": "GCS_PROJECT_ID" },
+              { "description": "Service account email for inline credentials.", "name": "GCS_CLIENT_EMAIL" },
+              { "description": "Service account private key for inline credentials.", "isSecret": true, "name": "GCS_PRIVATE_KEY" },
+              { "description": "Path to Google Cloud service account key file.", "name": "GOOGLE_APPLICATION_CREDENTIALS" },
+              { "description": "Root path prefix to restrict access within bucket.", "name": "GCS_ROOT_PATH" },
+              { "description": "Make uploaded files publicly accessible.", "default": "false", "name": "GCS_MAKE_PUBLIC" },
+              { "description": "Comma-separated tool groups: readonly or readwrite.", "name": "ENABLED_TOOLGROUPS" }
+            ]
+          }
+        ]
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "status": "active",
+          "statusChangedAt": "2026-06-26T14:07:53.723164Z",
+          "publishedAt": "2026-06-26T14:07:53.723164Z",
+          "updatedAt": "2026-06-26T14:07:53.723164Z",
+          "isLatest": true
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "academy.apexai/apex-ai-academy",
+        "description": "Read the forum and agent commons.",
+        "version": "1.0.0",
+        "repository": {
+          "url": "https://github.com/frumu-ai/tandem",
+          "source": "github"
+        },
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://apexai.academy/mcp",
+            "headers": [
+              {
+                "description": "Optional: Bearer <personal apex_ key> for Premium tools. Public tools need no key.",
+                "isSecret": true,
+                "name": "Authorization"
+              }
+            ]
+          }
+        ]
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "status": "active",
+          "publishedAt": "2026-06-26T14:07:53.723164Z",
+          "updatedAt": "2026-06-26T14:07:53.723164Z",
+          "isLatest": true
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "ai.circulara/plugin",
+        "description": "Circulara Observe plugin.",
+        "version": "1.2.0",
+        "repository": {
+          "url": "https://github.com/circulara/plugin",
+          "source": "github"
+        },
+        "packages": [
+          {
+            "registryType": "npm",
+            "identifier": "@circulara/plugin",
+            "version": "1.2.0",
+            "runtimeHint": "npx",
+            "transport": { "type": "stdio" },
+            "runtimeArguments": [
+              { "type": "positional", "value": "-y" },
+              { "type": "positional", "value": "-p" },
+              { "type": "positional", "value": "@circulara/plugin" },
+              { "type": "positional", "value": "circulara-mcp" }
+            ],
+            "environmentVariables": [
+              { "description": "Your Circulara Observe backend URL - copy from the Connect page after signing in at https://plugin.circulara.ai", "name": "CIRCULARA_BACKEND_URL" },
+              { "description": "Your workspace ID - from the Connect page", "name": "CIRCULARA_TENANT_ID" },
+              { "description": "Your signed workspace token - from the Connect page (keep secret)", "isSecret": true, "name": "CIRCULARA_TOKEN" },
+              { "description": "Your seat ID - from the Connect page", "name": "CIRCULARA_SEAT_ID" },
+              { "description": "Your email / identity - from the Connect page", "name": "CIRCULARA_USER_ID" }
+            ]
+          }
+        ]
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "status": "active",
+          "publishedAt": "2026-06-26T14:07:53.723164Z",
+          "updatedAt": "2026-06-26T14:07:53.723164Z",
+          "isLatest": true
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "ai.codenib/codenib",
+        "description": "Codenib graph tools.",
+        "version": "0.2.5",
+        "packages": [
+          {
+            "registryType": "pypi",
+            "identifier": "codenib",
+            "version": "0.2.5",
+            "runtimeHint": "uvx",
+            "transport": { "type": "stdio" },
+            "runtimeArguments": [
+              { "type": "named", "name": "--with", "value": "codenib[graph,mcp]==0.2.5" }
+            ]
+          }
+        ]
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "status": "active",
+          "publishedAt": "2026-06-26T14:07:53.723164Z",
+          "updatedAt": "2026-06-26T14:07:53.723164Z",
+          "isLatest": true
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "ai.autorfp/mcp",
+        "description": "AutoRFP data residency regions.",
+        "version": "1.0.0",
+        "remotes": [
+          {
+            "type": "streamable-http",
+            "url": "https://{api_host}/mcp",
+            "variables": {
+              "api_host": {
+                "description": "AutoRFP.ai API host for your data-residency region.",
+                "isRequired": true,
+                "choices": ["api.autorfp.ai", "api.eu.autorfp.ai", "api.us.autorfp.ai"]
+              }
+            }
+          }
+        ]
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "status": "active",
+          "publishedAt": "2026-06-26T14:07:53.723164Z",
+          "updatedAt": "2026-06-26T14:07:53.723164Z",
+          "isLatest": true
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "ai.biel/biel-ai",
+        "description": "Biel AI server.",
+        "version": "0.3.0",
+        "remotes": [
+          {
+            "type": "sse",
+            "url": "https://mcp.biel.ai/sse?project_slug={project_slug}&domain={domain}",
+            "variables": {
+              "project_slug": { "description": "Project slug.", "isRequired": true },
+              "domain": { "description": "Account domain.", "isRequired": true }
+            }
+          }
+        ]
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "status": "active",
+          "publishedAt": "2026-06-26T14:07:53.723164Z",
+          "updatedAt": "2026-06-26T14:07:53.723164Z",
+          "isLatest": true
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "io.github.no-owner/no-remote",
+        "description": "既没有 packages 也没有 remotes 的条目。",
+        "version": "0.0.1"
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "status": "active",
+          "publishedAt": "2026-06-26T14:07:53.723164Z",
+          "updatedAt": "2026-06-26T14:07:53.723164Z",
+          "isLatest": true
+        }
+      }
+    },
+    {
+      "server": {
+        "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+        "name": "ac.inference.sh/mcp",
+        "description": "MCP server for remote filesystem operations on cloud storage (Google Cloud Storage).",
+        "version": "1.0.0",
+        "remotes": [{ "type": "streamable-http", "url": "https://api.inference.sh/mcp" }]
+      },
+      "_meta": {
+        "io.modelcontextprotocol.registry/official": {
+          "status": "deprecated",
+          "publishedAt": "2025-01-01T00:00:00.000000Z",
+          "updatedAt": "2025-01-01T00:00:00.000000Z",
+          "isLatest": false
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "count": 9,
+    "nextCursor": "ac.inference.sh/mcp:2.0.1"
+  }
+}

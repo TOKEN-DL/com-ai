@@ -1,0 +1,3 @@
+event: message
+data: {"jsonrpc":"2.0","id":2,"result":{"tools":[{"_meta":{"fastmcp":{"tags":[]}},"description":"Ask any question about a GitHub repository's codebase and get an AI-powered answer\ngrounded in its DeepWiki.","inputSchema":{"properties":{"repoName":{"anyOf":[{"type":"string"},{"items":{"type":"string"},"type":"array"}],"description":"GitHub repository or list of repositories (max 10) in owner/repo format."},"question":{"description":"The question to ask about the repository.","type":"string"}},"required":["repoName","question"],"type":"object","additionalProperties":false},"name":"ask_wiki_question","title":"Ask Wiki Question"}]}}
+
