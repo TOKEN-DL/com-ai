@@ -50,6 +50,13 @@ export type SummaryGeneratorInput = {
   repoName: string | null;
   /// SPDX 许可证 id（null = 未声明）。
   license: string | null;
+  /// 模态（PROMPT 专有）：TEXT / MUSIC / VIDEO / IMAGE。
+  ///
+  /// 站上 6348 条 PROMPT 的 `act` 恒等于标题（同义反复，零信息量），
+  /// 真正回答得了「什么时候该用它」的是**模态 + 目标工具**（票 #26）。
+  modality?: string | null;
+  /// 目标工具 / 模型标签（PROMPT 专有）：suno / seedance / chatgpt …
+  toolTags?: string[];
 };
 
 /** 生成结果：结构化的中文简介初稿。 */
@@ -84,6 +91,116 @@ const KIND_LABELS: Record<AssetKind, string> = {
 };
 
 /**
+ * 模态 → 中文标签与「何时用」的组句模板（票 #26）。
+ *
+ * PROMPT 的素材是「一条音乐 / 视频 / 图片 / 文本提示词」+「目标是哪个工具」，
+ * 所以句子按模态组、带上这条提示词自己的标题 —— 不是把一句模板套 6348 遍。
+ */
+const MODALITY_TEMPLATES: Record<string, { label: string; phrase: string }> = {
+  MUSIC: { label: "音乐", phrase: "生成一段「{title}」风格的音乐" },
+  VIDEO: { label: "视频", phrase: "生成一段「{title}」风格的视频" },
+  IMAGE: { label: "图片", phrase: "生成一张「{title}」风格的图片" },
+  TEXT: { label: "文本", phrase: "完成「{title}」这类任务" },
+};
+
+/**
+ * **不是工具**的标签。
+ *
+ * `video-as-prompt` 是「这条提示词是拿来生成视频的」这一类**标记**，
+ * 不是某个工具 —— 它和 wan / cogview4 一起出现。
+ * 把它当成工具写进句子会读成「用 视频转提示词 生成一段视频」，是错的。
+ */
+const NON_TOOL_TAGS = new Set(["video-as-prompt"]);
+
+/**
+ * 目标工具标签 → 展示名。
+ *
+ * 不认识的标签**原样输出**，不编造名字（站内没有收录过的工具不能瞎写）。
+ */
+const TOOL_LABELS: Record<string, string> = {
+  chatgpt: "ChatGPT",
+  suno: "Suno",
+  seedance: "Seedance",
+  "seedance-2": "Seedance 2",
+  cogview4: "CogView 4",
+  cogvideox: "CogViewX",
+  musicgen: "MusicGen",
+  "stable-audio": "Stable Audio",
+  "minimax-music-3": "MiniMax Music 3",
+  musicfx: "MusicFX",
+  flux: "Flux",
+  "flux-3": "Flux 3",
+  udio: "Udio",
+  wan: "Wan",
+  "hunyuan-video": "混元视频",
+};
+
+/** 取目标工具的展示名列表（去掉非工具标签、去重、保序）。 */
+function formatToolLabels(toolTags: string[] | undefined): string[] {
+  const labels: string[] = [];
+  for (const tag of toolTags ?? []) {
+    if (NON_TOOL_TAGS.has(tag)) {
+      continue;
+    }
+    const label = TOOL_LABELS[tag] ?? tag;
+    if (!labels.includes(label)) {
+      labels.push(label);
+    }
+  }
+  return labels;
+}
+
+/**
+ * PROMPT 的模板初稿（票 #26）。
+ *
+ * 与其它类型不同，PROMPT 的素材不是「作者自述」而是「模态 + 目标工具」：
+ * 站上 6348 条 PROMPT 的 `act` 恒等于标题（零信息量），
+ * 真正回答得了「什么时候该用它」的是模态与工具。
+ *
+ * **作者自己写过的话仍然优先** —— 用户发布的资产走这条路
+ * （`description` 来自发布表单，不是采集来的）。
+ */
+function promptTemplateDraft(input: SummaryGeneratorInput): SummaryDraft {
+  const where =
+    input.repoOwner && input.repoName ? `${input.repoOwner}/${input.repoName}` : "未知来源";
+  const description = (input.description ?? "").trim();
+  const modality = MODALITY_TEMPLATES[input.modality ?? ""] ?? null;
+  const tools = formatToolLabels(input.toolTags);
+  const toolText = tools.length > 0 ? tools.join("、") : null;
+
+  const summaryZh =
+    description.length > 0
+      ? `来自 ${where} 的 Prompt「${input.displayName}」，${description}`
+      : `来自 ${where} 的 Prompt「${input.displayName}」，是一份` +
+        (modality
+          ? toolText
+            ? `${modality.label}类提示词，面向 ${toolText}。`
+            : `${modality.label}类通用提示词。`
+          : "提示词。");
+
+  const whenToUse =
+    description.length > 0
+      ? `适用于：${description}`
+      : modality
+        ? toolText
+          ? `当你需要用 ${toolText} ${modality.phrase.replace("{title}", input.displayName)}时。`
+          : `当你需要一份${modality.label}类提示词时。`
+        : "当你需要一份提示词时。";
+
+  const howToUse = toolText
+    ? `在详情页复制提示词正文，粘贴到 ${toolText} 里直接使用。`
+    : "在详情页复制提示词正文后直接使用。";
+
+  return {
+    summaryZh,
+    whenToUse,
+    howToUse,
+    tags: [],
+    source: "TEMPLATE",
+  };
+}
+
+/**
  * 模板降级初稿（纯函数，不联网、不看环境变量）。
  *
  * 什么时候用：
@@ -93,8 +210,14 @@ const KIND_LABELS: Record<AssetKind, string> = {
  *
  * 模板文案**不引用正文**，只引用元信息与用户自己写的那句话 ——
  * 所以它在 METADATA_ONLY 档位下也是安全的。
+ *
+ * PROMPT 走自己的一条路（票 #26）：它的素材是模态 + 目标工具，不是作者自述。
  */
 export function templateSummaryDraft(input: SummaryGeneratorInput): SummaryDraft {
+  if (input.kind === "PROMPT") {
+    return promptTemplateDraft(input);
+  }
+
   const where =
     input.repoOwner && input.repoName ? `${input.repoOwner}/${input.repoName}` : "未知来源";
   const kindLabel = KIND_LABELS[input.kind] ?? "资产";
