@@ -9,10 +9,33 @@ import { NextResponse } from "next/server";
 
 import { getAssetBySlug } from "@/lib/asset-query";
 import { createComment, listAssetComments } from "@/lib/comments";
+import { resolveScenarioSource } from "@/lib/scenario-service";
 import { getSessionUser, unauthorizedResponse } from "@/lib/session";
 
 // 评论要实时读库，不许被静态化。
 export const dynamic = "force-dynamic";
+
+/**
+ * 评论要挂在哪个资产上。
+ *
+ * 场景卡片（票 #12）的评论**挂在源 Skill 上** —— 卡片详情页与 Skill 详情页
+ * 共用同一套评论数据。用卡片的 slug 发评论时也要落到源资产上，
+ * 否则站上就出现两套评论：同一个 Skill 的经验散在两处。
+ */
+async function resolveCommentTarget(
+  slug: string,
+): Promise<{ id: string; slug: string } | null> {
+  const asset = await getAssetBySlug(slug);
+  if (!asset) {
+    return null;
+  }
+
+  if (asset.kind === "SCENARIO") {
+    return resolveScenarioSource(asset.id);
+  }
+
+  return { id: asset.id, slug: asset.slug };
+}
 
 /** 列出某个资产下的评论（顶层评论 + 挂在下面的回复）。 */
 export async function GET(
@@ -20,15 +43,15 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> },
 ): Promise<Response> {
   const { slug } = await params;
-  const asset = await getAssetBySlug(slug);
+  const target = await resolveCommentTarget(slug);
 
-  if (!asset) {
+  if (!target) {
     return NextResponse.json({ error: "not_found", message: "资产不存在。" }, { status: 404 });
   }
 
-  const items = await listAssetComments(asset.id);
+  const items = await listAssetComments(target.id);
 
-  return NextResponse.json({ slug: asset.slug, items });
+  return NextResponse.json({ slug, targetSlug: target.slug, items });
 }
 
 /** 发表评论（顶层）或回复（带 parentId）。 */
@@ -44,8 +67,9 @@ export async function POST(
     return unauthorizedResponse("登录后才能发表评论。");
   }
 
-  const asset = await getAssetBySlug(slug);
-  if (!asset) {
+  const target = await resolveCommentTarget(slug);
+
+  if (!target) {
     return NextResponse.json({ error: "not_found", message: "资产不存在。" }, { status: 404 });
   }
 
@@ -64,7 +88,7 @@ export async function POST(
     typeof payload.parentId === "string" && payload.parentId.length > 0 ? payload.parentId : null;
 
   const outcome = await createComment({
-    assetId: asset.id,
+    assetId: target.id,
     userId: session.id,
     body,
     parentId,

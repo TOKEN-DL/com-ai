@@ -82,13 +82,33 @@ export type PromptDetailInput = {
 };
 
 /**
+ * 场景卡片扩展表数据（票 #12）。
+ *
+ * 卡片与源资产的对应关系：源资产是谁、场景短语是什么、归一化键是什么
+ * （归一化键是去重的依据，数据库上有唯一约束兜底）。
+ */
+export type ScenarioDetailInput = {
+  /// 派生出这张卡片的源资产 id。
+  sourceAssetId: string;
+  /// 源资产的 slug（卡片详情页靠它直达 Skill 详情）。
+  sourceAssetSlug: string;
+  /// 场景短语原文。
+  scenarioText: string;
+  /// 场景短语的归一化键。
+  scenarioKey: string;
+  /// 派生来源：`whenToUse` / `frontmatter`。
+  origin: string;
+};
+
+/**
  * 类型扩展表数据。与 kind 一一对应：
  * 传了与 kind 不匹配的扩展表会直接报错，避免把 Skill 的字段写进 McpDetail。
  */
 export type AssetDetailInput =
   | { skill: SkillDetailInput }
   | { mcp: McpDetailInput }
-  | { prompt: PromptDetailInput };
+  | { prompt: PromptDetailInput }
+  | { scenario: ScenarioDetailInput };
 
 export type AssetWriteInput = {
   kind: AssetKind;
@@ -534,6 +554,14 @@ async function writeDetail(
     return;
   }
 
+  if (kind === "SCENARIO") {
+    if (!("scenario" in detail)) {
+      throw new Error(`detail 与 kind 不匹配：kind=${kind}，detail=${describeDetail(detail)}`);
+    }
+    await writeScenarioDetail(tx, assetId, detail.scenario);
+    return;
+  }
+
   if (!("prompt" in detail)) {
     throw new Error(`detail 与 kind 不匹配：kind=${kind}，detail=${describeDetail(detail)}`);
   }
@@ -550,6 +578,31 @@ async function writeDetail(
     attribution: prompt.attribution ?? null,
   };
   await tx.promptDetail.upsert({
+    where: { assetId },
+    create: { assetId, ...data },
+    update: data,
+  });
+}
+
+/**
+ * 写场景卡片的扩展表（票 #12）。
+ *
+ * 与其它三类一样走 1:1 扩展表 —— 「这张卡片是从哪个资产的哪个场景派生出来的」
+ * 记在 `ScenarioDetail` 里，主表那份 `Asset` 只管展示与检索。
+ *
+ * `scenarioKey` 上有唯一约束（sourceAssetId + scenarioKey），
+ * 所以「同一资产 + 同一场景只出现一次」是数据库保证的，不靠调用方自觉。
+ */
+async function writeScenarioDetail(tx: Tx, assetId: string, detail: ScenarioDetailInput): Promise<void> {
+  const data = {
+    sourceAssetId: detail.sourceAssetId,
+    sourceAssetSlug: detail.sourceAssetSlug,
+    scenarioText: detail.scenarioText,
+    scenarioKey: detail.scenarioKey,
+    origin: detail.origin,
+  };
+
+  await tx.scenarioDetail.upsert({
     where: { assetId },
     create: { assetId, ...data },
     update: data,

@@ -16,6 +16,7 @@ const KIND_LABELS: Record<AssetKind, string> = {
   SKILL: "Skill",
   MCP: "MCP",
   PROMPT: "Prompt",
+  SCENARIO: "场景卡片",
 };
 
 /** 排序维度的展示名。 */

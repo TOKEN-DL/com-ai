@@ -299,6 +299,17 @@ function toMcpAssetWriteInput(item: RawItem): Parameters<typeof writeAsset>[0] {
  * 批量入库。
  *
  * 单条失败不阻塞其它条目 —— 与「单源异常不阻塞其它源」是同一条原则。
+ *
+ * ## 场景卡片（票 #12）为什么不在这里派生
+ *
+ * 场景卡片是**派生资产**：入库一个 Skill 会多出一张场景卡片。
+ * 把派生塞进这条路径，这条路径的语义就变了
+ * （「采到几条就入库几条」变成「采到几条就多出几张卡片」），
+ * 依赖这条语义的地方全会对不上。
+ *
+ * 所以派生是**独立的一条定时任务**（见 `src/collector/collection-tasks.ts`）：
+ * 采集跑完之后，它把上一轮之后变过的资产补上卡片；
+ * 全量重算用 `pnpm scenarios:derive`。
  */
 export async function ingestItems(items: RawItem[]): Promise<IngestReport> {
   const outcomes: IngestOutcome[] = [];

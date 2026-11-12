@@ -11,6 +11,7 @@ import type { Asset, AssetKind } from "@prisma/client";
  *
  * MCP 的详情页在 `/mcp/{slug}`（票 #13 补齐的路由），
  * Prompt 的详情页在 `/prompts/{slug}`（票 #15 补齐的路由），
+ * 场景卡片在 `/scenarios/{slug}`（票 #12），
  * 其它类型走 `/skills/{slug}`。
  *
  * ⚠️ 这条规则**只写一份**：搜索结果、依赖关系列表、发布回显都要用到它 ——
@@ -22,6 +23,9 @@ export function assetDetailHref(kind: AssetKind, slug: string): string {
   }
   if (kind === "PROMPT") {
     return `/prompts/${slug}`;
+  }
+  if (kind === "SCENARIO") {
+    return `/scenarios/${slug}`;
   }
   return `/skills/${slug}`;
 }

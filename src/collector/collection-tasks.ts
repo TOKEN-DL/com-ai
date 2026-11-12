@@ -7,7 +7,9 @@
  * 默认节奏：
  *   - `skills.sh:leaderboard` —— 榜单是**高频源**（热度每天都在变），每天一次；
  *   - `skills.sh:sitemap`     —— 站点地图是**低频源**（目录变化很慢），每周一次；
- *   - `retention`             —— 保留策略每天跑一次（凌晨，避开整点）。
+ *   - `retention`             —— 保留策略每天跑一次（凌晨，避开整点）；
+ *   - `scenarios`             —— 场景卡片派生（票 #12），每天跑一次，
+ *                                排在所有采集之后，把新采集到的资产补上场景卡片。
  *
  * 表达式可以用环境变量覆盖（见 {@link resolveSchedule}）。
  */
@@ -22,6 +24,12 @@ import { PROMPT_SOURCES } from "@/collector/prompt-sources";
 import { runRetention } from "@/collector/retention";
 import { SkillsShAdapter } from "@/collector/skills-sh";
 import { collectFromSources, type SourceRequest } from "@/collector/pipeline";
+import {
+  findLastScenarioRunStartedAt,
+  pruneOrphanScenarioCards,
+  regenerateScenarioCards,
+  SCENARIO_TASK_SOURCE,
+} from "@/lib/scenario-service";
 import type { CollectionTaskResult } from "@/collector/collection-run";
 import type {
   GitHubRepoSourceConfig,
@@ -46,6 +54,8 @@ export const MCP_REGISTRY_SCHEDULE = "23 5 * * *";
  * 每天拉一遍纯属浪费带宽。
  */
 export const PROMPT_REPO_SCHEDULE = "11 6 * * 1";
+/** 场景卡片派生：每天 05:41 跑一次（排在所有采集任务之后）。 */
+export const SCENARIO_SCHEDULE = "41 5 * * *";
 
 export type CollectionTaskDefinition = {
   /// 采集源标识（运行记录与告警都按它归集）。
@@ -77,6 +87,8 @@ export type BuildTasksOptions = {
   retentionSchedule?: string;
   /// MCP 官方 registry 的 cron 表达式。
   mcpSchedule?: string;
+  /// 场景卡片派生的 cron 表达式。
+  scenarioSchedule?: string;
   /**
    * MCP 官方 registry 的适配器（测试可注入假实现）。
    */
@@ -247,6 +259,10 @@ export function buildCollectionTasks(options: BuildTasksOptions = {}): Collectio
       adapter: options.promptAdapter,
       dryRun: options.dryRun ?? false,
     }),
+    createScenarioTask({
+      schedule:
+        options.scenarioSchedule ?? resolveSchedule("CRON_SCENARIOS", SCENARIO_SCHEDULE),
+    }),
   ];
 }
 
@@ -291,6 +307,45 @@ function createPromptTask(options: {
         failed: ingested.failed,
         failures: failures.length,
         error: failures.length > 0 ? failures.join("；") : undefined,
+      };
+    },
+  };
+}
+
+/**
+ * 场景卡片派生任务（票 #12）。
+ *
+ * ## 为什么是独立的一条 cron，而不是采集入库时顺手派生
+ *
+ * 场景卡片是**派生资产**：入库一个 Skill 会多出一张场景卡片。
+ * 把派生塞进采集的入库路径，那条路径的语义就变了
+ * （「采到几条就入库几条」变成「采到几条就多出几张卡片」）。
+ * 派生单独一条 cron，采集路径保持原来的语义。
+ *
+ * ## 只处理增量
+ *
+ * 窗口 = 上一轮派生的**开始**时刻到本轮开始 —— 两轮之间没有缝隙，
+ * 上一轮跑到一半时变动的资产这一轮还会再看一遍。
+ * 第一次跑没有上一轮，就全量扫一遍（把存量资产补齐）。
+ *
+ * 全量重算用 `pnpm scenarios:derive`（同一条路径）。
+ */
+function createScenarioTask(options: { schedule: string }): CollectionTaskDefinition {
+  return {
+    id: SCENARIO_TASK_SOURCE,
+    sourceType: "scenario",
+    schedule: options.schedule,
+    task: async (): Promise<CollectionTaskResult> => {
+      const since = await findLastScenarioRunStartedAt();
+      const report = await regenerateScenarioCards(since ? { since } : {});
+      // 源资产被删（保留策略物理删除）后留下的孤儿卡片，顺手清掉。
+      await pruneOrphanScenarioCards();
+
+      return {
+        fetched: report.scanned,
+        written: report.cards,
+        failed: report.failed,
+        failures: 0,
       };
     },
   };

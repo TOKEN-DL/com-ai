@@ -80,6 +80,7 @@ const KIND_LABELS: Record<AssetKind, string> = {
   SKILL: "Skill",
   MCP: "MCP Server",
   PROMPT: "Prompt",
+  SCENARIO: "场景卡片",
 };
 
 /**

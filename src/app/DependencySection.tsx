@@ -22,6 +22,7 @@ const KIND_LABELS: Record<AssetKind, string> = {
   SKILL: "Skill",
   MCP: "MCP",
   PROMPT: "Prompt",
+  SCENARIO: "场景卡片",
 };
 
 /** 一条依赖关系（出边 / 入边共用）。 */
