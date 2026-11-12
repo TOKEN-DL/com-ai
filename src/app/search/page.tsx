@@ -35,10 +35,17 @@ function toggle<T>(values: T[], value: T): T[] {
  * 详情页链接。
  *
  * MCP 的详情页在 `/mcp/{slug}`（票 #13 补齐的路由），
+ * Prompt 的详情页在 `/prompts/{slug}`（票 #15 补齐的路由），
  * 其它类型暂时仍走 `/skills/{slug}`。
  */
 function detailHref(kind: AssetKind, slug: string): string {
-  return kind === "MCP" ? `/mcp/${slug}` : `/skills/${slug}`;
+  if (kind === "MCP") {
+    return `/mcp/${slug}`;
+  }
+  if (kind === "PROMPT") {
+    return `/prompts/${slug}`;
+  }
+  return `/skills/${slug}`;
 }
 
 /** 拼一个筛选链接：改一处条件，回到第一页。 */

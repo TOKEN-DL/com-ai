@@ -32,8 +32,6 @@
  */
 import { createHash } from "node:crypto";
 
-import type { PromptModality } from "@prisma/client";
-
 import { SourceConfigError, SourceStructureError } from "@/collector/errors";
 import { computeHeatScore } from "@/collector/heat";
 import { createHttpClient, fetchJson, fetchText, type HttpClient } from "@/collector/http";

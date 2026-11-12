@@ -43,6 +43,11 @@ export default async function HomePage() {
             <Link href="/mcp">浏览已收录的 MCP server</Link>
           </dd>
 
+          <dt>Prompt 库</dt>
+          <dd>
+            <Link href="/prompts">浏览按模态收录的提示词</Link>
+          </dd>
+
 <dt>搜索</dt>
           <dd>
             <Link href="/search">按关键词找 Skill</Link>

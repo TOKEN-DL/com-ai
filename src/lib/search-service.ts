@@ -42,7 +42,7 @@
  *   在 URL 里用 {@link UNDECLARED_LICENSE} 这个哨兵值表示。
  * - 归档条目（`Asset.archivedAt` 非空）**永远不出现在结果里**。
  */
-import type { AssetKind, ContentTier } from "@prisma/client";
+import type { AssetKind, ContentTier, PromptModality } from "@prisma/client";
 
 import { PostgresSearchService } from "@/lib/search-postgres";
 
@@ -57,7 +57,7 @@ export const UNDECLARED_LICENSE = "__none__";
 /** 排序维度。 */
 export type SearchSort = "relevance" | "heat" | "recent" | "name";
 
-/** 过滤条件（分面矩阵：分类 × 许可证 × 是否有官方版本）。 */
+/** 过滤条件（分面矩阵：分类 × 许可证 × 是否有官方版本 × 模态 × 工具）。 */
 export type SearchFilters = {
   /** 分类：资产类型。不传 / 空数组 = 跨类型。 */
   kind?: AssetKind[];
@@ -74,6 +74,20 @@ export type SearchFilters = {
    * （拼筛选链接时）也有个说法。
    */
   official?: boolean | null;
+  /**
+   * Prompt 模态（票 #15）：文本 / 图片 / 视频 / 音乐。
+   *
+   * 不传 / 空数组 = 不限。**只对 PROMPT 类资产有意义** ——
+   * 选了 VIDEO 就只命中模态为视频的 prompt，其它类型的资产自然被排除
+   * （它们的扩展表里根本没有这个模态）。
+   */
+  modality?: PromptModality[];
+  /**
+   * Prompt 工具 / 模型（票 #15）：Flux / Seedance / Suno …
+   *
+   * 不传 / 空数组 = 不限。同样只对 PROMPT 类资产有意义。
+   */
+  tool?: string[];
 };
 
 /** 检索入参。 */
@@ -135,6 +149,10 @@ export type SearchFacets = {
   license: SearchFacetBucket[];
   /** 是否有官方版本分面（`value` 为 `"true"` / `"false"`）。 */
   official: SearchFacetBucket[];
+  /** Prompt 模态分面（票 #15）。 */
+  modality: SearchFacetBucket[];
+  /** Prompt 工具 / 模型分面（票 #15）。 */
+  tool: SearchFacetBucket[];
 };
 
 /** 归一化后的入参回显。 */
@@ -144,6 +162,17 @@ export type NormalizedQuery = {
     kind: AssetKind[];
     license: (string | null)[];
     official: boolean | null;
+    /**
+     * Prompt 模态（票 #15）。
+     *
+     * ⚠️ **没选时是 `undefined`，不是空数组** —— 这样既有调用方
+     *    （把 `query.filters` 整个拿去断言相等的地方）看到的形状不变。
+     */
+    modality?: PromptModality[];
+    /**
+     * Prompt 工具 / 模型（票 #15）。同样：没选时是 `undefined`。
+     */
+    tool?: string[];
   };
   sort: SearchSort;
   page: number;
