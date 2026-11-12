@@ -51,6 +51,7 @@ import type {
   SourceType,
 } from "@/collector/types";
 import { matchesAnyGlob } from "@/lib/glob";
+import { resolveContentTier } from "@/lib/license-tier";
 import {
   loadLicenseOverrides,
   resolveLicenseOverride,
@@ -175,8 +176,12 @@ export class PromptRepoAdapter implements SourceAdapter<PromptRepoSourceConfig> 
         path,
         metadata.detectedSpdxId,
       );
-      if (license.match === "detected" && metadata.detectedSpdxId === null) {
-        issues.push(`${path}：没有许可证 override，上游也没声明许可证 → 只能落 METADATA_ONLY`);
+      // ⚠️ 分档判定走全站唯一入口（{@link resolveContentTier}），
+      //    这里不另写一套 —— 只是用它决定「要不要提醒运维」。
+      if (resolveContentTier(license.spdxId) !== "FULL") {
+        issues.push(
+          `${path}：最终许可证是 ${license.spdxId ?? "未声明"}，不是允许再分发的许可 → 只能落 METADATA_ONLY（站内不复制原文）`,
+        );
       }
 
       const blobUrl = `https://github.com/${definition.owner}/${definition.repo}/blob/${definition.branch}/${path}`;
@@ -221,7 +226,7 @@ export class PromptRepoAdapter implements SourceAdapter<PromptRepoSourceConfig> 
               promptBody: prompt.body,
               forDevs: prompt.forDevs ?? null,
               contributor: prompt.contributor ?? null,
-              toolTags: definition.toolTags,
+              toolTags: prompt.toolTags ?? definition.toolTags,
               attribution: license.attribution,
               sourcePath: path,
               detectedLicense: metadata.detectedSpdxId,

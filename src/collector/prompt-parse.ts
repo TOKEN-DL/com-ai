@@ -273,43 +273,73 @@ export function extractFencedBlocks(markdown: string): FencedBlock[] {
  * 围栏块前面最近的标题。
  *
  * 认两种形态：
- *   - Markdown 标题（`#` ~ `####`）；
+ *   - Markdown 标题（`#` ~ `######`）；
  *   - 独占一行的**粗体小标题**（`**Pop — Radio Anthem**`）——
  *     `musegen/awesome-music-prompts` 的 moods / use-cases / vocals 等文件
  *     用的是这种形态而**不是** `###`，只认标题会少收约 70 条。
  *
+ * 取的是**更近的那一个**：粗体小标题往往紧贴在围栏前面，
+ * 而 Markdown 标题可能在上好几行之前（`## Moods` / `**Nostalgic**`）。
+ *
  * 粗体只在块前 12 行内找：再远就多半是上一段正文里的强调，
  * 拿它当标题反而更糟。
  *
+ * `maxLevel` 用来限制标题层级：`YouMind` 的 README 里每条 prompt 前面
+ * 还有一个 `#### 📖 Description` 段落标题，只认 `###` 及更浅的层级
+ * 才会拿到真正的条目标题。`allowBold: false` 可以关掉粗体回退。
+ *
  * 找不到标题时返回 null —— 标题只用来展示，不影响正文。
  */
-export function headingBefore(markdown: string, offset: number): string | null {
+export function headingBefore(
+  markdown: string,
+  offset: number,
+  options: { maxLevel?: number; allowBold?: boolean } = {},
+): string | null {
+  const maxLevel = options.maxLevel ?? 6;
+  const allowBold = options.allowBold ?? true;
   const before = markdown.slice(0, offset);
   const lines = before.split(/\r?\n/);
 
-  // ① 先找最近的 Markdown 标题（不限距离）。
+  let headingIndex = -1;
+  let headingTitle: string | null = null;
+  let boldIndex = -1;
+  let boldTitle: string | null = null;
+
   for (let i = lines.length - 1; i >= 0; i -= 1) {
-    const match = /^[ \t]{0,3}#{1,4}[ \t]+([^\r\n]+?)[ \t]*$/.exec(lines[i] ?? "");
-    if (match) {
-      const title = (match[1] ?? "").trim();
-      if (title.length > 0) {
-        return title;
+    const line = lines[i] ?? "";
+
+    if (headingIndex === -1) {
+      const match = /^[ \t]{0,3}(#{1,6})[ \t]+([^\r\n]+?)[ \t]*$/.exec(line);
+      if (match && (match[1] ?? "#").length <= maxLevel) {
+        const title = (match[2] ?? "").trim();
+        if (title.length > 0) {
+          headingIndex = i;
+          headingTitle = title;
+        }
       }
+    }
+
+    if (allowBold && boldIndex === -1 && i >= lines.length - 12) {
+      const match = /^[ \t]{0,3}\*\*([^*\r\n]+)\*\*[ \t]*$/.exec(line);
+      if (match) {
+        const title = (match[1] ?? "").trim();
+        if (title.length > 0) {
+          boldIndex = i;
+          boldTitle = title;
+        }
+      }
+    }
+
+    if (headingIndex !== -1 && boldIndex !== -1) {
+      break;
     }
   }
 
-  // ② 没有 Markdown 标题 → 在附近找粗体小标题。
-  for (let i = lines.length - 1; i >= Math.max(0, lines.length - 12); i -= 1) {
-    const match = /^[ \t]{0,3}\*\*([^*\r\n]+)\*\*[ \t]*$/.exec(lines[i] ?? "");
-    if (match) {
-      const title = (match[1] ?? "").trim();
-      if (title.length > 0) {
-        return title;
-      }
-    }
+  // 取更近的那一个。
+  if (boldIndex !== -1 && (headingIndex === -1 || boldIndex > headingIndex)) {
+    return boldTitle;
   }
-
-  return null;
+  return headingTitle;
 }
 
 /** 解析 JSON，失败时抛 {@link SourceStructureError}（结构变了要显式失败）。 */

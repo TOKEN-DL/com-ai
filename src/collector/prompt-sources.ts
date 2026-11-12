@@ -50,6 +50,10 @@ export type ParsedPrompt = {
   contributor?: string | null;
   /** 覆盖源级模态（少数源内部混了多种模态）。 */
   modality?: PromptModality;
+  /**
+   * 覆盖源级工具标签（少数源内部按模型分了不同工具，如 bytedance 的多模型训练集）。
+   */
+  toolTags?: string[];
 };
 
 /** 一个语料源的声明式描述。 */
@@ -217,9 +221,21 @@ function parsePromptsChatCsv(path: string, content: string): ParsedPrompt[] {
   return out;
 }
 
-/** `PlexPt/awesome-chatgpt-prompts-zh/prompts-zh.json` —— 中文语料（124 条）。 */
-function parsePlexPtJson(path: string, content: string): ParsedPrompt[] {
-  const source = "PlexPt/awesome-chatgpt-prompts-zh";
+/**
+ * `CHENJIAMIAN/awesome-chatgpt-prompts-zh-CN/chatgpt_prompts-zh-CN.json` —— 中文语料。
+ *
+ * 结构：顶层 JSON 数组，条目形如 `{ cmd, act, tags, enable, prompt }`
+ * （`cmd` / `tags` / `enable` 是上游自己的字段，站内用不上）。
+ *
+ * ⚠️ **为什么不是 `PlexPt/awesome-chatgpt-prompts-zh`**（实测笔记里记的那个）：
+ *    那个仓库在采集时已经**不存在了**（`GET /repos/...` 返回 404），
+ *    GitHub 上再也搜不到同名仓库 —— 大概率是被删或改名了。
+ *    现在用的是同一批内容的中文分支：许可证 CC0-1.0（LICENSE 全文 +
+ *    GitHub 的 spdx_id 都认），README 明确写「本仓库的中文译文同样以 CC0-1.0
+ *    发布」，实测 2,172 条。
+ */
+function parseChinesePromptsJson(path: string, content: string): ParsedPrompt[] {
+  const source = "CHENJIAMIAN/awesome-chatgpt-prompts-zh-CN";
   const array = expectJsonArray(parseJson(content, source), source, `${path} 的顶层`);
   return array.map((raw, index) => {
     const row = expectJsonObject(raw, source, `${path} 第 ${index + 1} 条`);
@@ -238,7 +254,13 @@ function parsePlexPtJson(path: string, content: string): ParsedPrompt[] {
 /**
  * `YouMind-OpenLab/awesome-seedance-2-prompts/README.md` —— 视频提示词（106 条）。
  *
- * 结构：`### No. N: <标题>` → `#### 📝 Prompt` → 一个围栏块。
+ * 结构：**每个 `#### 📝 Prompt` 标记后面跟一个围栏块**。
+ *
+ * ⚠️ 条目标题有两种形态：
+ *   - 头几条是 `### No. N: <标题>`（带 `#### 📖 Description` 段落）；
+ *   - 后面的是 `### <标题>`（带 `> 引用` 段落）。
+ *   所以**不能**只按 `### No. N:` 切段 —— 那样只能捞到头几条。
+ *   这里改成**以 `#### 📝 Prompt` 标记为锚点**逐个取，条数与标记数一致。
  *
  * ⚠️ 只抓英文 README.md —— 另外 15 个语言版是同批内容的翻译，
  * 全抓会重复 16 倍。README 自己宣称「Total Prompts 6654」是虚标，
@@ -246,38 +268,49 @@ function parsePlexPtJson(path: string, content: string): ParsedPrompt[] {
  */
 function parseYouMindReadme(path: string, content: string): ParsedPrompt[] {
   const source = "YouMind-OpenLab/awesome-seedance-2-prompts";
-  const headingRe = /^### No\. (\d+): ([^\r\n]+)$/gm;
+  const marker = "#### 📝 Prompt";
   const out: ParsedPrompt[] = [];
 
-  const matches = [...content.matchAll(headingRe)];
-  if (matches.length === 0) {
-    throw new SourceStructureError(source, `${path} 里没有「### No. N:」标题（格式可能变了）`);
-  }
-
-  for (let i = 0; i < matches.length; i += 1) {
-    const match = matches[i] as RegExpMatchArray;
-    const next = matches[i + 1];
-    const section = content.slice(match.index, next?.index ?? content.length);
-
-    const marker = section.indexOf("#### 📝 Prompt");
-    if (marker === -1) {
-      continue;
+  let cursor = 0;
+  for (;;) {
+    const at = content.indexOf(marker, cursor);
+    if (at === -1) {
+      break;
     }
-    const blocks = extractFencedBlocks(section.slice(marker));
+    cursor = at + marker.length;
+
+    const blocks = extractFencedBlocks(content.slice(cursor));
     const block = blocks[0];
     if (!block) {
       continue;
     }
     out.push({
-      title: cleanTitle(match[2]),
+      // ⚠️ 只认 `###` 及更浅的标题：`#### 📖 Description` 是段落标题，
+      //    不是条目标题（`maxLevel: 3` 把它排除掉）。
+      //    粗体回退也关掉：这一份 README 的条目标题一律是 `###`。
+      title: cleanTitle(
+        stripYouMindIndex(headingBefore(content, at, { maxLevel: 3, allowBold: false })),
+      ),
       body: block.body,
     });
   }
 
   if (out.length === 0) {
-    throw new SourceStructureError(source, `${path} 里一条 prompt 都没解析出来`);
+    throw new SourceStructureError(source, `${path} 里一个「#### 📝 Prompt」标记都没有（格式可能变了）`);
   }
   return out;
+}
+
+/**
+ * 去掉标题里的「No. N: 」序号前缀。
+ *
+ * 序号是 README 排版用的，对用户没有意义 —— 标题里留着会让列表页很难看。
+ */
+function stripYouMindIndex(title: string | null): string | null {
+  if (!title) {
+    return null;
+  }
+  return title.replace(/^No\.\s*\d+\s*[:：]\s*/, "").trim() || null;
 }
 
 /**
@@ -296,13 +329,31 @@ function parseZeroLuReadme(path: string, content: string): ParsedPrompt[] {
  *
  * 结构：`{ "data": [ { "caption": "..." } ] }`。caption 就是提示词正文。
  *
+ * ⚠️ **不是每个文件都有 `data`**：实测 18 个文件里有 3 个是「索引」文件
+ *    （`{ root, val_data: ["vap_data.csv"], ... }`，指向 CSV 数据而不是内联条目）。
+ *    所以这类文件**跳过**（它的形状本来就是那样，不算结构变更），
+ *    但要让人看得见少了什么 —— 采集器会把它记成非致命问题。
+ *
  * ⚠️ 这个仓库本质是 huggingface/diffusers 的 fork，
- * `diffusers/` 子树有 2,000+ 个无关文件 —— 采集时必须排除。
+ * `diffusers/` 子树有 2,000+ 个无关文件 —— 采集时必须排除
+ * （路径清单只认 `examples/training` 开头，天然排除了它）。
+ *
+ * 模态与工具标签**按目录里的模型名**判定：
+ * `cogview4` / `flux_dev` 是图像模型，其余（cogvideox / wan / ltx_video /
+ * hunyuan_video）是视频模型。
  */
 function parseVideoAsPromptJson(path: string, content: string): ParsedPrompt[] {
   const source = "bytedance/Video-As-Prompt";
   const root = expectJsonObject(parseJson(content, source), source, `${path} 的顶层`);
+
+  // 索引文件：没有内联条目，指的是 CSV。
+  if (root.data === undefined) {
+    return [];
+  }
+
   const data = expectJsonArray(root.data, source, `${path} 的 data`);
+  const model = detectBytedanceModel(path);
+
   const out: ParsedPrompt[] = [];
   for (const raw of data) {
     const row = expectJsonObject(raw, source, `${path} 的 data 条目`);
@@ -313,9 +364,34 @@ function parseVideoAsPromptJson(path: string, content: string): ParsedPrompt[] {
       // 标题只是展示用的截断（正文仍是完整 caption）。
       title: cleanTitle(row.caption.slice(0, 60)),
       body: row.caption,
+      modality: model.modality,
+      toolTags: model.toolTags,
     });
   }
   return out;
+}
+
+/** bytedance 仓库里按目录判定的模型（决定模态与工具标签）。 */
+function detectBytedanceModel(path: string): { modality: PromptModality; toolTags: string[] } {
+  if (path.includes("cogview4")) {
+    return { modality: "IMAGE", toolTags: ["cogview4", "video-as-prompt"] };
+  }
+  if (path.includes("flux_dev")) {
+    return { modality: "IMAGE", toolTags: ["flux-dev", "video-as-prompt"] };
+  }
+  if (path.includes("cogvideox")) {
+    return { modality: "VIDEO", toolTags: ["cogvideox", "video-as-prompt"] };
+  }
+  if (path.includes("ltx_video")) {
+    return { modality: "VIDEO", toolTags: ["ltx-video", "video-as-prompt"] };
+  }
+  if (path.includes("hunyuan_video")) {
+    return { modality: "VIDEO", toolTags: ["hunyuan-video", "video-as-prompt"] };
+  }
+  if (path.includes("wan")) {
+    return { modality: "VIDEO", toolTags: ["wan", "video-as-prompt"] };
+  }
+  return { modality: "VIDEO", toolTags: ["video-as-prompt"] };
 }
 
 /**
@@ -493,12 +569,12 @@ export const PROMPT_SOURCES: PromptSourceDefinition[] = [
     toolTags: ["chatgpt"],
   },
   {
-    id: "PlexPt/awesome-chatgpt-prompts-zh",
-    owner: "PlexPt",
-    repo: "awesome-chatgpt-prompts-zh",
+    id: "CHENJIAMIAN/awesome-chatgpt-prompts-zh-CN",
+    owner: "CHENJIAMIAN",
+    repo: "awesome-chatgpt-prompts-zh-CN",
     branch: "main",
-    paths: ["prompts-zh.json"],
-    parse: parsePlexPtJson,
+    paths: ["chatgpt_prompts-zh-CN.json"],
+    parse: parseChinesePromptsJson,
     modality: "TEXT",
     toolTags: ["chatgpt"],
   },
