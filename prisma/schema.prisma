@@ -399,10 +399,76 @@ model PromptDetail {
   forDevs String?
   /// 贡献者署名。
   contributor String?
+  /// 工具 / 模型标签（Flux / Seedance / Suno …）。
+  ///
+  /// 为什么用数组而不是 JSON：Postgres 的 text[] 支持 `&&`（数组重叠）算子，
+  /// 「按工具筛选」能直接走索引；JSON 得先展开再比较。
+  /// 空数组 = 通用提示词（不针对任何特定工具 / 模型）。
+  toolTags String[] @default([])
+  /// 许可证要求的署名（票 #15）。
+  ///
+  /// CC BY 4.0 允许再分发，但**必须署名**（作者 + 许可证标识 + 原仓库链接）。
+  /// `contributor` 是「这条提示词是谁贡献的」，不能替代它 ——
+  /// 两者是不同的义务，前者来自上游仓库，后者来自许可证。
+  attribution String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([modality])
   @@map("PromptDetail")
+}
+
+/// 许可证 override（票 #15）。
+///
+/// ## 为什么需要这张表
+///
+/// GitHub 的 `license.spdx_id` 来自**仓库根目录 LICENSE 文件的机器识别**，
+/// 认不出下面两种情况，于是返回 `NOASSERTION`：
+///
+///   1. **一仓两许可** —— `f/prompts.chat` 的 LICENSE 是一段双许可说明：
+///      prompt 内容（prompts.csv / PROMPTS.md）是 CC0 1.0，源码是 MIT。
+///      只看仓库级的话，必然判错其中一边。
+///   2. **Markdown 结构的许可声明** —— `YouMind-OpenLab/awesome-seedance-2-prompts`
+///      的 LICENSE 就是标准 CC BY 4.0 全文，但 GitHub 仍未识别。
+///
+/// 照默认路径实现，这两个源（2,897 + 106 条）会全部掉进 METADATA_ONLY，
+/// 整个票就没有正文了。
+///
+/// ## 粒度：仓库级 + 文件级
+///
+/// - `appliesTo` 为**空数组** = 仓库级（整个仓库都是这个许可）；
+/// - `appliesTo` 非空 = 文件级（只覆盖列出的路径，支持 `**` / `*` 通配）。
+///
+/// 同仓不同文件不同许可 → 两条记录，靠 `appliesTo` 区分；
+/// 匹配时**文件级优先于仓库级**（更具体的那条胜出）。
+///
+/// ## 这张表怎么生效
+///
+/// 采集器按 (仓库, 文件路径) 查这张表，决定写入 `Asset.license` 的值；
+/// `Asset.license` 再由数据库触发器推导出 `contentTier` ——
+/// 于是「有没有 override」直接决定 `promptBody` 能不能存。
+/// **不要**改触发器去认这张表：触发器只认 `Asset.license` 这一列。
+model LicenseOverride {
+  /// 确定性主键：由「仓库 + SPDX + 适用路径」派生（见 src/lib/license-override.ts）。
+  /// 派生而不是自增，是为了让迁移里的种子数据可以幂等重放（ON CONFLICT DO NOTHING）。
+  id String @id
+  /// 仓库标识（owner/repo）。比较时不区分大小写。
+  repoSlug String
+  /// 覆盖后的 SPDX id（小写）。**空串 = 明确「不允许再分发」**（→ METADATA_ONLY）。
+  spdxId String
+  /// 适用的仓库内相对路径。空数组 = 整个仓库（仓库级）。
+  appliesTo String[] @default([])
+  /// 证据（人读）：LICENSE 文件的哪一行写了什么。审计用。
+  evidence String?
+  /// 署名文本（CC BY 4.0 之类的署名义务）。页面上要展示。
+  attribution String?
+  /// 备注：为什么这么判。
+  note String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([repoSlug])
+  @@map("LicenseOverride")
 }
 
 /// 资产版本：上游仓库用 commit sha，用户发布的用平台 semver。

@@ -40,7 +40,7 @@
  * 不在这里另写一份 —— 表达式与 `Asset_fulltext_idx` 的定义不一致，Postgres
  * 就不会用上索引。
  */
-import { AssetKind, Prisma, type ContentTier } from "@prisma/client";
+import { AssetKind, Prisma, PromptModality, type ContentTier } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { ASSET_FULLTEXT_EXPRESSION } from "@/lib/search-expression";
@@ -125,8 +125,8 @@ type FacetRow = {
   count: number;
 };
 
-/** 过滤维度（分面矩阵的三条轴）。 */
-type FilterDimension = "kind" | "license" | "official";
+/** 过滤维度（分面矩阵的各条轴）。 */
+type FilterDimension = "kind" | "license" | "official" | "modality" | "tool";
 
 /**
  * LIKE 模式里的字面量转义：把 \ % _ 变成「只匹配自身」的写法。
@@ -288,6 +288,34 @@ function buildFilterClause(
     parts.push(Prisma.sql`"isOfficial" = ${filters.official}`);
   }
 
+  // ─── Prompt 模态（票 #15）───────────────────────────────────────────
+  //
+  // 用 EXISTS 子查询而不是 JOIN：检索层只查 Asset 主表，
+  // 加 JOIN 会与 `Asset_fulltext_idx` 的全文表达式打架。
+  // 只有 PROMPT 类的资产在 PromptDetail 里有行，
+  // 所以选了模态就自动把其它类型的资产排除掉了。
+  if (skip !== "modality" && filters.modality && filters.modality.length > 0) {
+    const modalities = filters.modality.map((value) => Prisma.sql`${value}::"PromptModality"`);
+    parts.push(Prisma.sql`EXISTS (
+      SELECT 1 FROM "PromptDetail" pd
+      WHERE pd."assetId" = "Asset"."id"
+        AND pd."modality" IN (${Prisma.join(modalities)})
+    )`);
+  }
+
+  // ─── Prompt 工具 / 模型（票 #15）────────────────────────────────────
+  //
+  // `toolTags` 是 text[]，用数组重叠算子 `&&` 判断「命中任一即可」。
+  // 工具名来自用户输入 → 必须按字面量拼（LIKE 元字符转义同理）。
+  if (skip !== "tool" && filters.tool && filters.tool.length > 0) {
+    const tools = filters.tool.map((value) => Prisma.sql`${Prisma.raw(sqlLiteral(value))}::text`);
+    parts.push(Prisma.sql`EXISTS (
+      SELECT 1 FROM "PromptDetail" pd
+      WHERE pd."assetId" = "Asset"."id"
+        AND pd."toolTags" && ARRAY[${Prisma.join(tools)}]::text[]
+    )`);
+  }
+
   // 依赖筛选（票 #17）：不是分面维度，所以**任何维度钻取时都保留**。
   if (filters.dependsOn && filters.dependsOn.length > 0) {
     parts.push(buildDependsOnClause(filters.dependsOn));
@@ -358,6 +386,25 @@ function normalize(query: SearchQuery): NormalizedQuery {
 
   const official = typeof filters.official === "boolean" ? filters.official : null;
 
+  // ─── Prompt 模态 / 工具（票 #15）────────────────────────────────────
+  //
+  // ⚠️ 没选时是 `undefined` 而不是空数组：既有调用方会把 `query.filters`
+  //    整个拿去断言相等，多一个空数组键就会让那些断言红掉。
+  const modality: PromptModality[] = [];
+  for (const value of filters.modality ?? []) {
+    if (isPromptModality(value) && !modality.includes(value)) {
+      modality.push(value);
+    }
+  }
+
+  const tool: string[] = [];
+  for (const value of filters.tool ?? []) {
+    const normalizedTool = value.trim().toLowerCase();
+    if (normalizedTool.length > 0 && !tool.includes(normalizedTool)) {
+      tool.push(normalizedTool);
+    }
+  }
+
   // 依赖筛选（票 #17）：slug 归一化（站内 slug 全小写）+ 去重。
   const dependsOn: string[] = [];
   for (const value of filters.dependsOn ?? []) {
@@ -373,6 +420,8 @@ function normalize(query: SearchQuery): NormalizedQuery {
       kind,
       license,
       official,
+      ...(modality.length > 0 ? { modality } : {}),
+      ...(tool.length > 0 ? { tool } : {}),
       // ⚠️ 没有依赖筛选时**不出现**这个键（不是空数组）：
       //    归一化后的结构是公开契约，多一个空数组会让既有调用方对不上。
       ...(dependsOn.length > 0 ? { dependsOn } : {}),
@@ -385,6 +434,10 @@ function normalize(query: SearchQuery): NormalizedQuery {
 
 function isAssetKind(value: string): value is AssetKind {
   return (Object.values(AssetKind) as string[]).includes(value);
+}
+
+function isPromptModality(value: string): value is PromptModality {
+  return (Object.values(PromptModality) as string[]).includes(value);
 }
 
 function resolveSort(sort: SearchSort | undefined, q: string): SearchSort {
@@ -419,13 +472,16 @@ export class PostgresSearchService implements SearchService {
   async search(query: SearchQuery): Promise<SearchResult> {
     const normalized = normalize(query);
 
-    const [items, total, kindFacet, licenseFacet, officialFacet] = await Promise.all([
-      queryItems(normalized),
-      queryTotal(normalized),
-      queryFacet(normalized, "kind", Prisma.raw(`"kind"`)),
-      queryFacet(normalized, "license", Prisma.raw(`"license"`)),
-      queryFacet(normalized, "official", Prisma.raw(`"isOfficial"::text`)),
-    ]);
+    const [items, total, kindFacet, licenseFacet, officialFacet, modalityFacet, toolFacet] =
+      await Promise.all([
+        queryItems(normalized),
+        queryTotal(normalized),
+        queryFacet(normalized, "kind", Prisma.raw(`"kind"`)),
+        queryFacet(normalized, "license", Prisma.raw(`"license"`)),
+        queryFacet(normalized, "official", Prisma.raw(`"isOfficial"::text`)),
+        queryModalityFacet(normalized),
+        queryToolFacet(normalized),
+      ]);
 
     const totalPages = normalized.pageSize > 0 ? Math.ceil(total / normalized.pageSize) : 0;
 
@@ -439,10 +495,49 @@ export class PostgresSearchService implements SearchService {
         kind: kindFacet,
         license: licenseFacet,
         official: officialFacet,
+        modality: modalityFacet,
+        tool: toolFacet,
       },
       query: normalized,
     };
   }
+}
+
+/**
+ * Prompt 模态分面（票 #15）。
+ *
+ * JOIN `PromptDetail` —— 只有 PROMPT 类的资产才有模态。
+ * 该维度自身的过滤条件不参与（钻取语义），其余条件（含关键词）都参与。
+ */
+async function queryModalityFacet(normalized: NormalizedQuery): Promise<SearchFacetBucket[]> {
+  const where = buildWhereClause(normalized, "modality");
+  const rows = await prisma.$queryRaw<FacetRow[]>`
+    SELECT pd."modality"::text AS "value", count(*)::int AS "count"
+    FROM "Asset"
+    JOIN "PromptDetail" pd ON pd."assetId" = "Asset"."id"
+    WHERE ${where}
+    GROUP BY pd."modality"
+  `;
+  return rows.map((row) => ({ value: row.value, count: row.count }));
+}
+
+/**
+ * Prompt 工具 / 模型分面（票 #15）。
+ *
+ * `toolTags` 是数组，要先展开成行再统计：
+ * `CROSS JOIN LATERAL unnest(...)` 让每个标签单独成一行。
+ */
+async function queryToolFacet(normalized: NormalizedQuery): Promise<SearchFacetBucket[]> {
+  const where = buildWhereClause(normalized, "tool");
+  const rows = await prisma.$queryRaw<FacetRow[]>`
+    SELECT t AS "value", count(*)::int AS "count"
+    FROM "Asset"
+    JOIN "PromptDetail" pd ON pd."assetId" = "Asset"."id"
+    CROSS JOIN LATERAL unnest(pd."toolTags") AS t
+    WHERE ${where}
+    GROUP BY t
+  `;
+  return rows.map((row) => ({ value: row.value, count: row.count }));
 }
 
 /** 取当前页的结果条目。 */

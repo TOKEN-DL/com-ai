@@ -64,6 +64,18 @@ export function buildTemplateSummary(item: RawItem): string {
   }
 
   const where = repoOwner && repoName ? `${repoOwner}/${repoName}` : "上游仓库";
+
+  if (item.metadata.kind === "PROMPT") {
+    // Prompt 的标题（act）本身就是一句可读的说明，
+    // 所以模板简介只讲来源与许可档位，不复述正文（正文在详情页单独展示）。
+    const modality = item.metadata.prompt?.modality ?? "TEXT";
+    const base = `来自 ${where} 的${MODALITY_LABELS[modality]}提示词「${item.title}」。`;
+    if (resolveContentTier(item.metadata.license) === "METADATA_ONLY") {
+      return `${base}该上游未声明允许再分发的许可证，站内只保留元数据与链接，正文请前往原仓库查看。`;
+    }
+    return base;
+  }
+
   const base = `来自 ${where} 的 Skill「${item.title}」。`;
 
   if (resolveContentTier(item.metadata.license) === "METADATA_ONLY") {
@@ -71,6 +83,14 @@ export function buildTemplateSummary(item: RawItem): string {
   }
   return base;
 }
+
+/** 模态的展示名（模板简介与页面共用一份）。 */
+const MODALITY_LABELS: Record<string, string> = {
+  TEXT: "文本",
+  IMAGE: "图片",
+  VIDEO: "视频",
+  MUSIC: "音乐",
+};
 
 /**
  * 入库前生成简介（票 #7）。
@@ -80,6 +100,20 @@ export function buildTemplateSummary(item: RawItem): string {
  */
 export async function buildIngestSummary(item: RawItem): Promise<IngestSummary> {
   if (resolveContentTier(item.metadata.license) !== "FULL") {
+    return {
+      summaryZh: buildTemplateSummary(item),
+      whenToUse: null,
+      howToUse: null,
+      summarySource: "TEMPLATE",
+    };
+  }
+
+  // Prompt 一律走模板简介，不调模型。
+  //
+  // 理由：prompt 的标题（act）本身就是一句可读的说明，
+  // 而一批 prompt 是**几千条**量级 —— 逐条调模型既慢又贵，
+  // 收益却很低。需要中文简介时用批量重跑脚本补（票 #7 那条链路）。
+  if (item.metadata.kind === "PROMPT") {
     return {
       summaryZh: buildTemplateSummary(item),
       whenToUse: null,
@@ -117,6 +151,9 @@ export function toAssetWriteInput(
 ): Parameters<typeof writeAsset>[0] {
   if (item.metadata.kind === "MCP") {
     return toMcpAssetWriteInput(item);
+  }
+  if (item.metadata.kind === "PROMPT") {
+    return toPromptAssetWriteInput(item);
   }
   const installCmds = buildInstallCommands({
     owner: item.metadata.repoOwner,
@@ -159,6 +196,53 @@ export function toAssetWriteInput(
         hosts: Object.keys(installCmds),
         skillPath: item.metadata.skillPath,
         extraFiles: item.metadata.extraFiles as unknown as Prisma.InputJsonValue,
+      },
+    },
+  };
+}
+
+/**
+ * Prompt 条目的写入输入。
+ *
+ * ⚠️ **正文必须逐字**：写入的 `contentBody` 与 `detail.prompt.promptBody`
+ *    是**同一个字符串**，不做任何 trim / 规范化 —— 验收标准要求
+ *    「一键复制出的提示词原文与来源逐字一致」。
+ *
+ * ⚠️ METADATA_ONLY 档位（上游没声明可再分发的许可）时，
+ *    服务层与数据库触发器都会把 `promptBody` / `contentBody` 清空 ——
+ *    站内不复制别人的版权正文，只留元数据与链接。
+ */
+function toPromptAssetWriteInput(item: RawItem): Parameters<typeof writeAsset>[0] {
+  const prompt = item.metadata.prompt;
+
+  return {
+    kind: "PROMPT",
+    slug: item.slug,
+    displayName: item.title,
+    license: item.metadata.license,
+    contentBody: item.content ?? null,
+    summaryZh: buildTemplateSummary(item),
+    summarySource: "TEMPLATE",
+    repoOwner: item.metadata.repoOwner || null,
+    repoName: item.metadata.repoName || null,
+    repoUrl: item.metadata.repoUrl || null,
+    upstreamUrl: item.metadata.upstreamUrl,
+    sourceId: item.metadata.sourceId,
+    publishedAt: item.publishedAt ?? null,
+    lastSyncedAt: new Date(),
+    isOfficial: item.metadata.isOfficial,
+    stars: item.metadata.stars,
+    installs: item.metadata.installs,
+    heatScore: item.metadata.heatScore,
+    detail: {
+      prompt: {
+        modality: prompt?.modality ?? "TEXT",
+        act: prompt?.act ?? null,
+        promptBody: prompt?.promptBody ?? null,
+        forDevs: prompt?.forDevs ?? null,
+        contributor: prompt?.contributor ?? null,
+        toolTags: prompt?.toolTags ?? [],
+        attribution: prompt?.attribution ?? null,
       },
     },
   };

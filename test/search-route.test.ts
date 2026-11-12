@@ -193,13 +193,16 @@ describe("检索入口约束", () => {
     expect(source).not.toMatch(/from\s+"@\/lib\/search-service"/);
   });
 
-  it("MCP 的页面与接口也不直接查数据库", () => {
-    // 票 #13 的 MCP 页面同样受同一条规矩约束：
-    // 列表页走 SearchService，详情页走视图模型（@/lib/mcp-detail）。
+  it("MCP 与 Prompt 的页面、接口都不直接查数据库", () => {
+    // 票 #13 的 MCP 页面与票 #15 的 Prompt 页面同样受同一条规矩约束：
+    // 列表页走 SearchService，详情页走视图模型（@/lib/mcp-detail / @/lib/prompt-detail）。
     const entryFiles = [
       "src/app/mcp/page.tsx",
       "src/app/mcp/[slug]/page.tsx",
       "src/app/api/mcp/[slug]/route.ts",
+      "src/app/prompts/page.tsx",
+      "src/app/prompts/[slug]/page.tsx",
+      "src/app/api/prompts/[slug]/route.ts",
     ];
     const offenders: string[] = [];
 
@@ -217,9 +220,10 @@ describe("检索入口约束", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("MCP 列表页的检索经由 SearchService", () => {
-    const source = readFileSync(path.join(REPO_ROOT, "src/app/mcp/page.tsx"), "utf8");
-
-    expect(source).toMatch(/getSearchService/);
+  it("MCP 与 Prompt 的列表页的检索都经由 SearchService", () => {
+    for (const file of ["src/app/mcp/page.tsx", "src/app/prompts/page.tsx"]) {
+      const source = readFileSync(path.join(REPO_ROOT, file), "utf8");
+      expect(source).toMatch(/getSearchService/);
+    }
   });
 });

@@ -17,12 +17,16 @@ import { GitHubRepoAdapter } from "@/collector/github";
 import { createHttpClient } from "@/collector/http";
 import { ingestItems } from "@/collector/ingest";
 import { McpRegistryAdapter } from "@/collector/mcp-registry";
+import { PromptRepoAdapter } from "@/collector/prompt-repo";
+import { PROMPT_SOURCES } from "@/collector/prompt-sources";
 import { runRetention } from "@/collector/retention";
 import { SkillsShAdapter } from "@/collector/skills-sh";
+import { collectFromSources, type SourceRequest } from "@/collector/pipeline";
 import type { CollectionTaskResult } from "@/collector/collection-run";
 import type {
   GitHubRepoSourceConfig,
   McpRegistrySourceConfig,
+  PromptRepoSourceConfig,
   SourceAdapter,
 } from "@/collector/types";
 
@@ -34,6 +38,14 @@ export const SITEMAP_SCHEDULE = "43 3 * * 1";
 export const RETENTION_SCHEDULE = "7 4 * * *";
 /** MCP 官方 registry：每天 05:23 跑一次。 */
 export const MCP_REGISTRY_SCHEDULE = "23 5 * * *";
+/**
+ * Prompt 语料库：每周一 06:11 跑一次。
+ *
+ * 为什么是每周而不是每天：语料源是**仓库里的静态文件**，
+ * 变更是低频事件；而主力源 `f/prompts.chat/prompts.csv` 有 10 MB，
+ * 每天拉一遍纯属浪费带宽。
+ */
+export const PROMPT_REPO_SCHEDULE = "11 6 * * 1";
 
 export type CollectionTaskDefinition = {
   /// 采集源标识（运行记录与告警都按它归集）。
@@ -82,6 +94,14 @@ export type BuildTasksOptions = {
    * 工具探测要跟每个 server 握一次手（慢），所以单独设个闸门。
    */
   mcpMaxToolProbes?: number;
+  /**
+   * Prompt 语料库的 cron 表达式。
+   */
+  promptSchedule?: string;
+  /**
+   * Prompt 语料采集适配器（测试可注入假实现）。
+   */
+  promptAdapter?: SourceAdapter<PromptRepoSourceConfig>;
   /**
    * 只采集不��库（命令行 `--dry-run` 用）。
    *
@@ -221,7 +241,59 @@ export function buildCollectionTasks(options: BuildTasksOptions = {}): Collectio
         options.mcpMaxToolProbes ?? resolveNumber("MCP_MAX_TOOL_PROBES", 500),
       dryRun: options.dryRun ?? false,
     }),
+    createPromptTask({
+      schedule:
+        options.promptSchedule ?? resolveSchedule("CRON_PROMPT_REPO", PROMPT_REPO_SCHEDULE),
+      adapter: options.promptAdapter,
+      dryRun: options.dryRun ?? false,
+    }),
   ];
+}
+
+/**
+ * Prompt 语料库的采集任务（票 #15）。
+ *
+ * 与 MCP 那条一样是「一轮采全再入库」，但**每个语料源单独算一次**：
+ * 语料源之间互不相关（一个源的 LICENSE 变了不影响其它源），
+ * 所以一个源失败只记那一个源的失败。
+ */
+function createPromptTask(options: {
+  schedule: string;
+  adapter?: SourceAdapter<PromptRepoSourceConfig>;
+  dryRun: boolean;
+}): CollectionTaskDefinition {
+  return {
+    id: "prompt-repo:catalog",
+    sourceType: "prompt-repo",
+    schedule: options.schedule,
+    task: async (): Promise<CollectionTaskResult> => {
+      const adapter = options.adapter ?? new PromptRepoAdapter();
+      const requests: SourceRequest[] = PROMPT_SOURCES.map((source) => ({
+        adapter,
+        config: { type: "prompt-repo", source: source.id } as PromptRepoSourceConfig,
+        label: source.id,
+      }));
+
+      const report = await collectFromSources(requests);
+      const fetched = report.items.length;
+
+      const ingested = options.dryRun
+        ? { written: 0, failed: 0 }
+        : await ingestItems(report.items);
+
+      const failures = report.outcomes
+        .filter((outcome) => !outcome.ok)
+        .map((outcome) => `${outcome.source}：${outcome.error ?? "未知原因"}`);
+
+      return {
+        fetched,
+        written: ingested.written,
+        failed: ingested.failed,
+        failures: failures.length,
+        error: failures.length > 0 ? failures.join("；") : undefined,
+      };
+    },
+  };
 }
 
 /**

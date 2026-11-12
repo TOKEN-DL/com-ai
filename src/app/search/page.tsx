@@ -2,8 +2,9 @@ import type { AssetKind } from "@prisma/client";
 import Link from "next/link";
 
 import { assetDetailHref } from "@/lib/asset-item";
-import { buildSearchParams, isAssetKind, parseSearchQuery, toUrlSearchParams } from "@/lib/search-params";
+import { buildSearchParams, isAssetKind, isPromptModality, parseSearchQuery, toUrlSearchParams } from "@/lib/search-params";
 import { getSearchService, type NormalizedQuery, type SearchSort } from "@/lib/search-service";
+import { PROMPT_MODALITY_LABELS } from "@/lib/prompt-detail";
 
 import { SummaryUsage } from "@/app/SummaryUsage";
 
@@ -155,6 +156,60 @@ export default async function SearchPage({
               })}
             </ul>
           </section>
+
+          {/*
+            模态与工具 / 模型（票 #15）。
+            只对 PROMPT 有意义 —— 分面本来就是从 PromptDetail 出来的，
+            没有 prompt 时这两个分面是空的，所以直接不渲染。
+          */}
+          {result.facets.modality.length > 0 ? (
+            <section className="facet-group">
+              <h2>模态</h2>
+              <ul className="facet-list">
+                {result.facets.modality.map((bucket) => {
+                  if (!bucket.value || !isPromptModality(bucket.value)) {
+                    return null;
+                  }
+                  const modality = bucket.value;
+                  const selected = (query.filters.modality ?? []).includes(modality);
+                  return (
+                    <li key={modality}>
+                      <Link
+                        href={facetHref(query, {
+                          modality: toggle(query.filters.modality ?? [], modality),
+                        })}
+                        className={selected ? "facet-selected" : undefined}
+                      >
+                        {PROMPT_MODALITY_LABELS[modality]}（{bucket.count}）
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
+
+          {result.facets.tool.length > 0 ? (
+            <section className="facet-group">
+              <h2>工具 / 模型</h2>
+              <ul className="facet-list">
+                {result.facets.tool.map((bucket) => {
+                  const tool = bucket.value ?? "";
+                  const selected = (query.filters.tool ?? []).includes(tool);
+                  return (
+                    <li key={tool}>
+                      <Link
+                        href={facetHref(query, { tool: toggle(query.filters.tool ?? [], tool) })}
+                        className={selected ? "facet-selected" : undefined}
+                      >
+                        {tool}（{bucket.count}）
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
         </aside>
 
         <section className="search-results">

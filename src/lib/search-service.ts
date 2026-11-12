@@ -44,7 +44,7 @@
  * - 依赖关系（票 #17）既是一个**筛选条件**（`filters.dependsOn`），
  *   也是关键词命中的一条**通道**（查「PDF 处理」时，依赖了 PDF 工具的资产也算命中）。
  */
-import type { AssetKind, ContentTier } from "@prisma/client";
+import type { AssetKind, ContentTier, PromptModality } from "@prisma/client";
 
 import { PostgresSearchService } from "@/lib/search-postgres";
 
@@ -59,7 +59,7 @@ export const UNDECLARED_LICENSE = "__none__";
 /** 排序维度。 */
 export type SearchSort = "relevance" | "heat" | "recent" | "name";
 
-/** 过滤条件（分面矩阵：分类 × 许可证 × 是否有官方版本）。 */
+/** 过滤条件（分面矩阵：分类 × 许可证 × 是否有官方版本 × 模态 × 工具）。 */
 export type SearchFilters = {
   /** 分类：资产类型。不传 / 空数组 = 跨类型。 */
   kind?: AssetKind[];
@@ -76,6 +76,20 @@ export type SearchFilters = {
    * （拼筛选链接时）也有个说法。
    */
   official?: boolean | null;
+  /**
+   * Prompt 模态（票 #15）：文本 / 图片 / 视频 / 音乐。
+   *
+   * 不传 / 空数组 = 不限。**只对 PROMPT 类资产有意义** ——
+   * 选了 VIDEO 就只命中模态为视频的 prompt，其它类型的资产自然被排除
+   * （它们的扩展表里根本没有这个模态）。
+   */
+  modality?: PromptModality[];
+  /**
+   * Prompt 工具 / 模型（票 #15）：Flux / Seedance / Suno …
+   *
+   * 不传 / 空数组 = 不限。同样只对 PROMPT 类资产有意义。
+   */
+  tool?: string[];
   /**
    * 依赖筛选（票 #17）：只返回**依赖了这些资产**的条目。
    *
@@ -149,6 +163,10 @@ export type SearchFacets = {
   license: SearchFacetBucket[];
   /** 是否有官方版本分面（`value` 为 `"true"` / `"false"`）。 */
   official: SearchFacetBucket[];
+  /** Prompt 模态分面（票 #15）。 */
+  modality: SearchFacetBucket[];
+  /** Prompt 工具 / 模型分面（票 #15）。 */
+  tool: SearchFacetBucket[];
 };
 
 /** 归一化后的入参回显。 */
@@ -158,6 +176,17 @@ export type NormalizedQuery = {
     kind: AssetKind[];
     license: (string | null)[];
     official: boolean | null;
+    /**
+     * Prompt 模态（票 #15）。
+     *
+     * ⚠️ **没选时是 `undefined`，不是空数组** —— 这样既有调用方
+     *    （把 `query.filters` 整个拿去断言相等的地方）看到的形状不变。
+     */
+    modality?: PromptModality[];
+    /**
+     * Prompt 工具 / 模型（票 #15）。同样：没选时是 `undefined`。
+     */
+    tool?: string[];
     /**
      * 依赖筛选（票 #17）。
      *

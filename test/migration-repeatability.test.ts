@@ -53,6 +53,8 @@ const EXPECTED_TABLES = [
   "CollectionAlert",
   // #9 的邮箱验证登录：一次性登录令牌（魔法链接 / GitHub OAuth 的 state）。
   "LoginToken",
+  // #15 的 Prompt 库：许可证覆盖表（仓库级 + 文件级）。
+  "LicenseOverride",
 ];
 
 /**

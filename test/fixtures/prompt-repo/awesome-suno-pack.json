@@ -1,0 +1,16 @@
+[
+  {
+    "id": "drift-phonk-gym-01",
+    "title": "Viral Drift Phonk Gym Edit",
+    "genre": "phonk",
+    "subgenre": "drift-phonk",
+    "prompt": "Drift Phonk, 140 BPM half-time feel, signature distorted 808 cowbell on off-beats, aggressive vocal chops, gym motivation energy",
+    "useCase": "Workout playlists",
+    "sunoVersion": "v6",
+    "energy": 9,
+    "bpm": 140,
+    "key": "D Minor",
+    "tags": [],
+    "source": "https://github.com/naqashmunir21/awesome-suno-prompts"
+  }
+]

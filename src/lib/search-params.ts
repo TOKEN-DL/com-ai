@@ -8,7 +8,7 @@
  * 这里只做**语法层**的翻译（字符串 ↔ 契约里的类型）；
  * 语义层的归一化（去重、夹紧分页、默认排序）由检索实现负责。
  */
-import { AssetKind } from "@prisma/client";
+import { AssetKind, PromptModality } from "@prisma/client";
 
 import {
   UNDECLARED_LICENSE,
@@ -31,6 +31,8 @@ const DEFAULT_PAGE_SIZE = 20;
  *   kind      分类（可重复）
  *   license   许可证（可重复；`__none__` = 未声明许可证）
  *   official  是否有官方版本（`true` / `false`）
+ *   modality  Prompt 模态（可重复；票 #15）
+ *   tool      Prompt 工具 / 模型（可重复；票 #15）
  *   dependsOn 依赖了谁（可重复；被依赖资产的 slug，票 #17）
  *   sort      排序维度（单值）
  *   page      页码（从 1 开始）
@@ -74,6 +76,24 @@ export function parseSearchQuery(params: URLSearchParams): SearchQuery {
   const official =
     officialRaw === "true" ? true : officialRaw === "false" ? false : null;
 
+  // ─── Prompt 模态 / 工具（票 #15）────────────────────────────────────
+  const modality: PromptModality[] = [];
+  for (const raw of params.getAll("modality")) {
+    const value = raw.trim().toUpperCase();
+    if (!isPromptModality(value) || modality.includes(value)) {
+      continue;
+    }
+    modality.push(value);
+  }
+
+  const tool: string[] = [];
+  for (const raw of params.getAll("tool")) {
+    const value = raw.trim().toLowerCase();
+    if (value.length > 0 && !tool.includes(value)) {
+      tool.push(value);
+    }
+  }
+
   const sortRaw = params.get("sort");
   const sort = SORTS.includes(sortRaw as SearchSort) ? (sortRaw as SearchSort) : undefined;
 
@@ -86,6 +106,8 @@ export function parseSearchQuery(params: URLSearchParams): SearchQuery {
       kind,
       license,
       official,
+      modality,
+      tool,
       // 没有依赖筛选时**不出现**这个键（不是空数组）——
       // 与检索实现归一化后的结构保持一致。
       ...(dependsOn.length > 0 ? { dependsOn } : {}),
@@ -101,6 +123,10 @@ export type SearchParamsPatch = {
   kind?: AssetKind[];
   license?: (string | null)[];
   official?: boolean | null;
+  /** Prompt 模态（票 #15）。 */
+  modality?: PromptModality[];
+  /** Prompt 工具 / 模型（票 #15）。 */
+  tool?: string[];
   /// 依赖筛选（票 #17）：被依赖资产的 slug。
   dependsOn?: string[];
   sort?: SearchSort;
@@ -135,6 +161,17 @@ export function buildSearchParams(
     params.set("official", String(official));
   }
 
+  // 模态与工具没选时**不写进 URL**（`undefined` 不是空数组）——
+  // 这样既有页面的链接形状不变，筛选项也不会平白多出两个空参数。
+  const modality = patch.modality ?? query.filters.modality;
+  for (const value of modality ?? []) {
+    params.append("modality", value);
+  }
+  const tool = patch.tool ?? query.filters.tool;
+  for (const value of tool ?? []) {
+    params.append("tool", value);
+  }
+
   // 依赖筛选（票 #17）：可重复参数。
   for (const value of patch.dependsOn ?? query.filters.dependsOn ?? []) {
     params.append("dependsOn", value);
@@ -158,6 +195,11 @@ export function buildSearchParams(
 /** 判断一个字符串是不是合法的资产分类。 */
 export function isAssetKind(value: string): value is AssetKind {
   return (Object.values(AssetKind) as string[]).includes(value);
+}
+
+/** 判断一个字符串是不是合法的 Prompt 模态（票 #15）。 */
+export function isPromptModality(value: string): value is PromptModality {
+  return (Object.values(PromptModality) as string[]).includes(value);
 }
 
 /**
