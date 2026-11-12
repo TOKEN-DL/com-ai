@@ -12,7 +12,7 @@
  *   - `api.github.com` 的响应（仓库元数据 + trees）—— 占 API 配额的那部分；
  *   - `raw.githubusercontent.com` 的正文 —— 不占配额，但缓存住能少打扰上游。
  *
- * 缓��在哪：默认 `.cache/collector`（已 gitignore），可用 `COLLECTOR_CACHE_DIR` 改。
+ * 缓存在哪：默认 `.cache/collector`（已 gitignore），可用 `COLLECTOR_CACHE_DIR` 改。
  * TTL 默认 6 小时 —— 一天跑一次的任务，第二天自然全部过期重取。
  */
 import { createHash } from "node:crypto";

@@ -115,7 +115,7 @@ export type BuildTasksOptions = {
    */
   promptAdapter?: SourceAdapter<PromptRepoSourceConfig>;
   /**
-   * 只采集不��库（命令行 `--dry-run` 用）。
+   * 只采集不落库（命令行 `--dry-run` 用）。
    *
    * ⚠️ 必须真的**不调** {@link ingestItems}：否则「dry-run」只是把
    *    报告里的入库条数改成 0，数据其实已经写进去了。
