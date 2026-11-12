@@ -128,7 +128,7 @@ export type PublishAssetResult = {
   draft: SummaryDraft;
   /// 是否命中自动关键词过滤。
   filtered: boolean;
-  /// **本次落库的依赖关系**（票 #17）：依赖了谁。
+  /// **本次解析并写入的依赖关系**（票 #17）：依赖了谁。
   ///
   /// 没传清单时是空数组 —— 注意这不代表「解除了依赖」：
   /// 没传清单 = 不动已有关系（见 {@link PublishAssetInput.manifest}）。

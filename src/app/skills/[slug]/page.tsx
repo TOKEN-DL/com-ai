@@ -8,6 +8,7 @@ import { resolveSessionUser, SESSION_COOKIE, type SessionUser } from "@/lib/sess
 
 import { SummarySourceNote, SummaryUsage } from "@/app/SummaryUsage";
 import { CopyButton } from "@/app/CopyButton";
+import { DependencySection } from "@/app/DependencySection";
 import { CommentsSection } from "./CommentsSection";
 import { InteractionButtons } from "./InteractionButtons";
 import { ReportButton } from "./ReportButton";
@@ -236,6 +237,13 @@ export default async function SkillDetailPage({
           <p className="badge-muted">还没有版本记录。</p>
         )}
       </section>
+
+      {/* 依赖关系（票 #17）：依赖了谁 / 被谁依赖。 */}
+      <DependencySection
+        slug={skill.slug}
+        dependsOn={skill.dependencies.dependsOn}
+        dependedOnBy={skill.dependencies.dependedOnBy}
+      />
 
       <section className="install">
         <h2>一键安装</h2>
