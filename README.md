@@ -93,7 +93,7 @@ vitest 的 harness 跑在**真实 Postgres** 上，不用内存替身 —— 全
 | `pnpm prisma:migrate` | 生成并应用迁移 |
 | `pnpm prisma:studio` | Prisma Studio |
 | `pnpm sync:versions` | 同步上游版本：有新 commit 就记版本、生成变更日志、回写内容（`--limit N` 控制一轮扫多少个，受 GitHub 配额限制） |
-| `pnpm scenarios:derive` | 从 Skill 的「何时用」与 frontmatter 派生场景卡片（`--limit N` 控制一轮扫多少个资产，`--prune` 顺便清理孤儿卡片；采集入库时已顺手派生过一次，这个命令是兜底与重算） |
+| `pnpm scenarios:derive` | 从 Skill 的「何时用」与 frontmatter 派生场景卡片（`--limit N` 控制一轮扫多少个资产，`--prune` 顺便清理孤儿卡片）。站上平时由 `scenarios` 这条定时任务增量派生（只处理上一轮之后变过的资产），这个命令是全量重算与手动兜底 |
 | `pnpm compose:up` / `compose:down` | 便捷脚本 |
 
 ## 技术栈

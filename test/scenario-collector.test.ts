@@ -4,8 +4,14 @@
  * Seam 3 —— 采集边界：派生走 `SourceAdapter` 契约，用 fixture 驱动，**不打真实网络**。
  *
  * 盯两件事：
- *   1. 采集入库之后，场景卡片**顺手就派生出来了**（零额外采集成本）；
+ *   1. 采集入库之后，派生任务能把这批资产的**场景卡片补出来**（零额外采集成本）；
  *   2. 卡片能被统一检索命中（它是 `kind = SCENARIO` 的资产行）。
+ *
+ * ## 为什么派生是独立的一条任务
+ *
+ * 场景卡片是**派生资产**：入库一个 Skill 会多出一张卡片。
+ * 把派生塞进采集的入库路径，「采到几条就入库几条」这条语义就变了。
+ * 所以派生走自己的定时任务（`scenarios`），采集路径保持原样。
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -13,6 +19,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { buildCollectionTasks } from "@/collector/collection-tasks";
 import { GitHubRepoAdapter } from "@/collector/github";
 import type { HttpClient } from "@/collector/http";
 import { ingestItems } from "@/collector/ingest";
@@ -68,13 +75,24 @@ async function collectAndIngest() {
   return ingested;
 }
 
-describe("采集入库时顺手派生场景卡片", () => {
-  it("入库之后就有场景卡片了，并记着它是从哪个 Skill 派生的", async () => {
+/** 跑一次场景卡片派生任务（定时任务那条路径）。 */
+async function runScenarioTask(): Promise<void> {
+  const task = buildCollectionTasks().find((entry) => entry.id === "scenarios");
+  expect(task).toBeDefined();
+  await task?.task();
+}
+
+describe("采集入库后派生场景卡片", () => {
+  it("派生任务把这批资产的场景卡片补出来，并记着它是从哪个 Skill 派生的", async () => {
     const ingested = await collectAndIngest();
 
     expect(ingested.failed).toBe(0);
     expect(ingested.written).toBeGreaterThan(0);
-    expect(ingested.scenarioCards).toBeGreaterThan(0);
+
+    // 入库本身**不**产生卡片：卡片是派生资产，由派生任务产出。
+    expect(await prisma.asset.count({ where: { kind: "SCENARIO" } })).toBe(0);
+
+    await runScenarioTask();
 
     const source = await prisma.asset.findUniqueOrThrow({
       where: { slug: "vercel-labs-skills-find-skills" },
@@ -91,6 +109,7 @@ describe("采集入库时顺手派生场景卡片", () => {
 
   it("卡片能被统一检索命中", async () => {
     await collectAndIngest();
+    await runScenarioTask();
 
     const card = await prisma.asset.findFirstOrThrow({ where: { kind: "SCENARIO" } });
     const result = await getSearchService().search({
@@ -103,9 +122,11 @@ describe("采集入库时顺手派生场景卡片", () => {
 
   it("同一个 Skill 重采一次，不会多出第二张卡片", async () => {
     await collectAndIngest();
+    await runScenarioTask();
     const first = await prisma.asset.findMany({ where: { kind: "SCENARIO" } });
 
     await collectAndIngest();
+    await runScenarioTask();
     const second = await prisma.asset.findMany({ where: { kind: "SCENARIO" } });
 
     expect(second).toHaveLength(first.length);
