@@ -55,6 +55,8 @@ const EXPECTED_TABLES = [
   "LoginToken",
   // #15 的 Prompt 库：许可证覆盖表（仓库级 + 文件级）。
   "LicenseOverride",
+  // #12 的场景卡片：卡片与源资产的对应关系（去重约束就落在这里）。
+  "ScenarioDetail",
 ];
 
 /**

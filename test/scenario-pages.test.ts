@@ -11,6 +11,9 @@
  *   4. 卡片下方**可评论**，且评论与资产详情页是**同一套数据**。
  */
 import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { POST as postComment } from "@/app/api/assets/[slug]/comments/route";
@@ -238,5 +241,34 @@ describe("场景卡片下方的评论", () => {
       await ScenarioDetailPage({ params: Promise.resolve({ slug: cardSlug }) }),
     );
     expect(cardHtml).toContain("补充一条经验");
+  });
+});
+
+describe("场景卡片的检索入口约束", () => {
+  const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const entryFiles = ["src/app/scenarios/page.tsx", "src/app/scenarios/[slug]/page.tsx"];
+
+  it("页面不直接查数据库（不 import Prisma 客户端，也不写原生 SQL）", () => {
+    const offenders: string[] = [];
+
+    for (const file of entryFiles) {
+      const source = readFileSync(path.join(REPO_ROOT, file), "utf8");
+
+      if (/from\s+"@\/lib\/prisma"/.test(source)) {
+        offenders.push(`${file}：直接 import 了 Prisma 客户端`);
+      }
+      if (/\$queryRaw|\$executeRaw|\$queryRawUnsafe/.test(source)) {
+        offenders.push(`${file}：写了原生 SQL`);
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("列表页的检索经由 SearchService", () => {
+    const source = readFileSync(path.join(REPO_ROOT, "src/app/scenarios/page.tsx"), "utf8");
+
+    expect(source).toMatch(/getSearchService/);
+    expect(source).toMatch(/kind: \["SCENARIO"\]/);
   });
 });
