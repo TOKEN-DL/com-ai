@@ -27,6 +27,11 @@ enum AssetKind {
   SKILL
   MCP
   PROMPT
+  /// 场景卡片（票 #12）：从资产的「何时用」与 frontmatter 自动派生出来的使用场景。
+  ///
+  /// 它是一张**真实的 Asset 行**（不是实时视图）—— 这样它天然能被统一检索命中、
+  /// 能挂评论、能统计。卡片与源资产的对应关系记在 ScenarioDetail 表里。
+  SCENARIO
 }
 
 /// 内容档位（spec 约束 1：许可证分层必须在写入路径强制执行）。
@@ -205,6 +210,10 @@ model Asset {
   skillDetail   SkillDetail?
   mcpDetail     McpDetail?
   promptDetail  PromptDetail?
+  /// 这张资产**作为场景卡片**时的扩展信息（kind = SCENARIO 才有值）。
+  scenarioDetail ScenarioDetail?   @relation("ScenarioCard")
+  /// 以这张资产为源派生出来的场景卡片。
+  scenarioCards  ScenarioDetail[]  @relation("ScenarioSource")
   versions      AssetVersion[]
   dependenciesFrom AssetDependency[] @relation("AssetDependencyFrom")
   dependenciesTo   AssetDependency[] @relation("AssetDependencyTo")
@@ -469,6 +478,45 @@ model LicenseOverride {
 
   @@index([repoSlug])
   @@map("LicenseOverride")
+}
+
+/// 场景卡片（票 #12）。
+///
+/// ## 为什么场景卡片要落库，而不是实时派生
+///
+/// 验收标准要求场景卡片「能被统一搜索命中」「下方可评论」——
+/// 搜索走的是 Postgres 全文索引（`Asset_fulltext_idx`），实时派生的东西进不了索引；
+/// 评论要挂在 `Comment.assetId` 上，也要有一个真实的资产行。
+/// 所以场景卡片是**独立的 Asset 行**（kind = SCENARIO），这张表记它与源资产的对应关系。
+///
+/// ## 唯一约束就是去重规则
+///
+/// `@@unique([sourceAssetId, scenarioKey])` 直接把验收标准里那句
+/// 「同一资产 + 同一场景只出现一次」钉在数据库上：
+/// 派生规则改了、重跑了一遍、两个来源（何时用 / frontmatter）抽出了同一句话 ——
+/// 都不会产生第二张卡片。
+model ScenarioDetail {
+  /// 卡片自己的资产 id（kind = SCENARIO 的那行 Asset）。
+  assetId String @id
+  asset   Asset  @relation("ScenarioCard", fields: [assetId], references: [id], onDelete: Cascade)
+  /// 派生出这张卡片的源资产（那个 Skill）。
+  sourceAssetId String
+  sourceAsset   Asset  @relation("ScenarioSource", fields: [sourceAssetId], references: [id], onDelete: Cascade)
+  /// 源资产的 slug（卡片详情页靠它直达 Skill 详情）。
+  sourceAssetSlug String
+  /// 场景短语原文（展示用）。
+  scenarioText String
+  /// 场景短语的归一化键（NFKC + 小写 + 去空白 + 去标点）—— 去重就靠它。
+  scenarioKey  String
+  /// 派生来源：`whenToUse`（票 #7 的「何时用」）或 `frontmatter`（上游自述）。
+  origin String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sourceAssetId, scenarioKey])
+  @@index([sourceAssetId])
+  @@index([sourceAssetSlug])
+  @@map("ScenarioDetail")
 }
 
 /// 资产版本：上游仓库用 commit sha，用户发布的用平台 semver。
