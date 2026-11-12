@@ -18,7 +18,7 @@
  * | 字段 | 类型 | 说明 |
  * | --- | --- | --- |
  * | `q` | `string` | 查询词（自然语言关键词）。空串 = 纯浏览，不按关键词过滤。 |
- * | `filters` | {@link SearchFilters} | 过滤条件（分类 / 许可证 / 是否有官方版本）。 |
+ * | `filters` | {@link SearchFilters} | 过滤条件（分类 / 许可证 / 是否有官方版本 / 依赖了谁）。 |
  * | `sort` | {@link SearchSort} | 排序维度。默认：有查询词时按相关度，否则按热度。 |
  * | `page` | `number` | 页码，从 1 开始。默认 1。 |
  * | `pageSize` | `number` | 每页条数。默认 20，上限 100。 |
@@ -41,6 +41,8 @@
  * - 未声明许可证（`Asset.license` 为 null）在过滤条件里用 `null` 表示，
  *   在 URL 里用 {@link UNDECLARED_LICENSE} 这个哨兵值表示。
  * - 归档条目（`Asset.archivedAt` 非空）**永远不出现在结果里**。
+ * - 依赖关系（票 #17）既是一个**筛选条件**（`filters.dependsOn`），
+ *   也是关键词命中的一条**通道**（查「PDF 处理」时，依赖了 PDF 工具的资产也算命中）。
  */
 import type { AssetKind, ContentTier } from "@prisma/client";
 
@@ -74,6 +76,18 @@ export type SearchFilters = {
    * （拼筛选链接时）也有个说法。
    */
   official?: boolean | null;
+  /**
+   * 依赖筛选（票 #17）：只返回**依赖了这些资产**的条目。
+   *
+   * 值是被依赖资产在平台上的 slug。不传 / 空数组 = 不限。
+   *
+   * ## 为什么要它
+   *
+   * 票里写的是「依赖了 PDF 处理能力的资产」这种**按能力找依赖方**的需求。
+   * 光靠关键词只能间接命中（见实现里的「依赖目标文本」通道），
+   * 有了这个参数就能**精确**地说「我要看依赖了 pdf-batch-processor 的资产」。
+   */
+  dependsOn?: string[];
 };
 
 /** 检索入参。 */
@@ -144,6 +158,14 @@ export type NormalizedQuery = {
     kind: AssetKind[];
     license: (string | null)[];
     official: boolean | null;
+    /**
+     * 依赖筛选（票 #17）。
+     *
+     * ⚠️ **没有依赖筛选时这个键不出现**（不是空数组）：
+     *    归一化后的结构是公开契约（接口直接把它回给调用方），
+     *    平白多出一个空数组会让既有调用方对不上。
+     */
+    dependsOn?: string[];
   };
   sort: SearchSort;
   page: number;

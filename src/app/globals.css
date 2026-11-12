@@ -316,6 +316,41 @@ code {
   color: var(--muted);
 }
 
+/* 依赖关系（票 #17）：两栏列表 = 出边 + 入边 */
+.dependency-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.2rem;
+}
+
+.dependency-side h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.dependency-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dependency-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.dependency-list li:last-child {
+  border-bottom: none;
+}
+
+.dependency-arrow {
+  color: var(--muted);
+}
+
 .version-update-notice {
   margin: 0.75rem 0;
   padding: 0.6rem 0.8rem;

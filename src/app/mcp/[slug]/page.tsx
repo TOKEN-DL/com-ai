@@ -7,6 +7,7 @@ import { getMcpDetail } from "@/lib/mcp-detail";
 import { resolveSessionUser, SESSION_COOKIE, type SessionUser } from "@/lib/session";
 
 import { CopyButton } from "@/app/CopyButton";
+import { DependencySection } from "@/app/DependencySection";
 
 // 详情要实时读库，不许被静态化。
 export const dynamic = "force-dynamic";
@@ -220,7 +221,7 @@ export default async function McpDetailPage({
         ) : null}
       </section>
 
-      {mcp.conflicts.length > 0 ? (
+{mcp.conflicts.length > 0 ? (
         <section className="conflict-notice">
           <h2>安装前冲突提示</h2>
           <p className="conflict-intro">
@@ -242,6 +243,13 @@ export default async function McpDetailPage({
           </p>
         </section>
       ) : null}
+
+      {/* 依赖关系（票 #17）：依赖了谁 / 被谁依赖。 */}
+      <DependencySection
+        slug={mcp.slug}
+        dependsOn={mcp.dependencies.dependsOn}
+        dependedOnBy={mcp.dependencies.dependedOnBy}
+      />
 
       <section className="install">
         <h2>一键复制配置片段</h2>

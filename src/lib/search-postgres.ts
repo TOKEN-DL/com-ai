@@ -14,6 +14,7 @@
  * | 全文（正文 C，仅 FULL 档） | `ts_rank_cd(..., 32)` ∈ [0,1] | 0.6 | 正文命中补充 |
  * | pg_trgm 模糊 | `similarity()` ∈ [0,1] | 0.5 | 拼写接近 / 词序不同 |
  * | ILIKE 包含命中 | 0 / 1 | 0.4 | 中文短查询兜底 |
+ * | 依赖目标的文本（票 #17） | 0 / 1 | 0.5 | 「依赖了具备某种能力的资产」 |
  *
  * `ts_rank_cd` 的第 3 个参数 32 表示归一化（`rank / (rank + 1)`），取值 ∈ [0,1]，
  * 这样各通道的量纲才对得上。
@@ -86,6 +87,8 @@ const WEIGHT_FULLTEXT = Prisma.raw("1.0");
 const WEIGHT_FULLTEXT_BODY = Prisma.raw("0.6");
 const WEIGHT_TRGM = Prisma.raw("0.5");
 const WEIGHT_LIKE = Prisma.raw("0.4");
+/** 依赖目标的文本命中（票 #17）。 */
+const WEIGHT_DEPENDENCY = Prisma.raw("0.5");
 
 /** 取数用的列。 */
 const SELECT_COLUMNS = Prisma.raw(
@@ -155,6 +158,47 @@ function buildLikeClause(q: string): Prisma.Sql {
 }
 
 /**
+ * 「依赖目标的文本」命中条件（票 #17）。
+ *
+ * 票里的检索需求是「**依赖了 PDF 处理能力的资产**」——
+ * 这句话的主语是**依赖方**，但关键词「PDF 处理」落在**被依赖方**身上。
+ * 所以这里把依赖目标的名称 / slug / 简介也算进命中判定：
+ * 依赖了 PDF 工具的资产，搜「pdf」时同样会被搜出来。
+ *
+ * ⚠️ 已归档的依赖目标不参与命中：归档条目前端不可见，
+ *    拿它当命中依据等于把用户引向一个看不到的资产。
+ */
+function buildDependencyTextClause(q: string): Prisma.Sql {
+  const pattern = Prisma.raw(sqlLiteral(`%${escapeLikePattern(q)}%`));
+
+  return Prisma.sql`EXISTS (
+    SELECT 1
+    FROM "AssetDependency" d
+    JOIN "Asset" t ON t."id" = d."toId"
+    WHERE d."fromId" = "Asset"."id"
+      AND t."archivedAt" IS NULL
+      AND (t."displayName" ILIKE ANY(ARRAY[${pattern}]::text[])
+        OR t."slug" ILIKE ANY(ARRAY[${pattern}]::text[])
+        OR t."summaryZh" ILIKE ANY(ARRAY[${pattern}]::text[]))
+  )`;
+}
+
+/**
+ * 「依赖了这些资产」的筛选条件（票 #17）。
+ *
+ * 值是**被依赖资产的 slug**。
+ */
+function buildDependsOnClause(slugs: string[]): Prisma.Sql {
+  return Prisma.sql`EXISTS (
+    SELECT 1
+    FROM "AssetDependency" d
+    JOIN "Asset" t ON t."id" = d."toId"
+    WHERE d."fromId" = "Asset"."id"
+      AND t."slug" IN (${Prisma.join(slugs)})
+  )`;
+}
+
+/**
  * pg_trgm 模糊匹配。只在查询串够长时启用。
  *
  * 两边都套 `lower()`：`similarity()` 默认**区分大小写**，而全文检索与 ILIKE
@@ -170,7 +214,7 @@ function buildTrgmClause(q: string): Prisma.Sql {
 }
 
 /**
- * 关键词命中条件：全文 / trigram / 包含匹配三路的并集。
+ * 关键词命中条件：全文 / trigram / 包含匹配 / 依赖目标文本 四路的并集。
  *
  * 查询词为空 = 纯浏览，不按关键词过滤。
  */
@@ -185,22 +229,28 @@ function buildMatchClause(q: string): Prisma.Sql {
   const like = buildLikeClause(q);
   const trgm =
     q.length >= TRGM_MIN_QUERY_LENGTH ? buildTrgmClause(q) : Prisma.sql`FALSE`;
+  // 依赖目标的文本（票 #17）：搜「PDF 处理」时，依赖了 PDF 工具的资产也算命中。
+  const dependencyText = buildDependencyTextClause(q);
 
-  return Prisma.sql`(${fulltextTitleSummary} OR ${fulltextBody} OR ${trgm} OR ${like})`;
+  return Prisma.sql`(${fulltextTitleSummary} OR ${fulltextBody} OR ${trgm} OR ${like} OR ${dependencyText})`;
 }
 
-/** 相关度得分：四路证据加权求和。 */
+/** 相关度得分：五路证据加权求和。 */
 function buildScoreClause(q: string): Prisma.Sql {
   const tsquery = Prisma.sql`plainto_tsquery('simple', ${q})`;
   const fulltextTitleSummary = Prisma.sql`ts_rank_cd(${FTS_TITLE_SUMMARY}, ${tsquery}, 32)`;
   const fulltextBody = Prisma.sql`ts_rank_cd(${FTS_BODY}, ${tsquery}, 32)`;
   const trgm = Prisma.sql`greatest(similarity(lower("displayName"), lower(${q})), similarity(lower("slug"), lower(${q})))`;
   const likeHit = Prisma.sql`CASE WHEN ${buildLikeClause(q)} THEN 1 ELSE 0 END`;
+  // 依赖目标的文本命中（票 #17）：权重与 trigram 同一档 ——
+  // 它是一条**间接**证据，不该压过资产自身的标题 / 简介。
+  const dependencyHit = Prisma.sql`CASE WHEN ${buildDependencyTextClause(q)} THEN 1 ELSE 0 END`;
 
   return Prisma.sql`(${WEIGHT_FULLTEXT} * ${fulltextTitleSummary}
     + ${WEIGHT_FULLTEXT_BODY} * ${fulltextBody}
     + ${WEIGHT_TRGM} * ${trgm}
-    + ${WEIGHT_LIKE} * ${likeHit})`;
+    + ${WEIGHT_LIKE} * ${likeHit}
+    + ${WEIGHT_DEPENDENCY} * ${dependencyHit})`;
 }
 
 /**
@@ -236,6 +286,11 @@ function buildFilterClause(
 
   if (skip !== "official" && filters.official !== null) {
     parts.push(Prisma.sql`"isOfficial" = ${filters.official}`);
+  }
+
+  // 依赖筛选（票 #17）：不是分面维度，所以**任何维度钻取时都保留**。
+  if (filters.dependsOn && filters.dependsOn.length > 0) {
+    parts.push(buildDependsOnClause(filters.dependsOn));
   }
 
   if (parts.length === 0) {
@@ -303,9 +358,25 @@ function normalize(query: SearchQuery): NormalizedQuery {
 
   const official = typeof filters.official === "boolean" ? filters.official : null;
 
+  // 依赖筛选（票 #17）：slug 归一化（站内 slug 全小写）+ 去重。
+  const dependsOn: string[] = [];
+  for (const value of filters.dependsOn ?? []) {
+    const normalizedSlug = value.trim().toLowerCase();
+    if (normalizedSlug.length > 0 && !dependsOn.includes(normalizedSlug)) {
+      dependsOn.push(normalizedSlug);
+    }
+  }
+
   return {
     q,
-    filters: { kind, license, official },
+    filters: {
+      kind,
+      license,
+      official,
+      // ⚠️ 没有依赖筛选时**不出现**这个键（不是空数组）：
+      //    归一化后的结构是公开契约，多一个空数组会让既有调用方对不上。
+      ...(dependsOn.length > 0 ? { dependsOn } : {}),
+    },
     sort: resolveSort(query.sort, q),
     page: clampInt(query.page, 1, 1_000_000, 1),
     pageSize: clampInt(query.pageSize, 1, MAX_PAGE_SIZE, DEFAULT_PAGE_SIZE),

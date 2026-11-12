@@ -19,6 +19,7 @@
 import type { ContentTier, SummarySource } from "@prisma/client";
 
 import { getAssetBySlug } from "@/lib/asset-query";
+import { listAssetDependencies, type AssetDependenciesView } from "@/lib/dependency-service";
 import { detectMcpConflicts, type McpConflict } from "@/lib/mcp-conflict";
 import { listInstalledMcpServers } from "@/lib/mcp-install";
 
@@ -121,6 +122,8 @@ export type McpDetailView = {
   /// 游客态、没有已接入集合、或确实不冲突时都是**空数组** ——
   /// 页面据此不展示冲突区域（不制造噪音）。
   conflicts: McpConflict[];
+  /// 依赖关系（票 #17）：依赖了谁 / 被谁依赖。
+  dependencies: AssetDependenciesView;
 };
 
 /** 取 MCP 详情时的可选参数。 */
@@ -331,6 +334,8 @@ export async function getMcpDetail(
     // 带顶层 `mcpServers` 键，粘进客户端的配置文件就能用（见 configText 的注释）。
     configText: JSON.stringify({ mcpServers: config }, null, 2),
     conflicts,
+    // 依赖关系（票 #17）：出边 + 入边。
+    dependencies: await listAssetDependencies(asset.id),
   };
 }
 
