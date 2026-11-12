@@ -1,0 +1,62 @@
+{
+  "url": "https://api.github.com/repos/vercel-labs/skills/compare/0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d...9f1c2b7d4e5a6f708192a3b4c5d6e7f8091a2b3c",
+  "html_url": "https://github.com/vercel-labs/skills/compare/0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d...9f1c2b7d4e5a6f708192a3b4c5d6e7f8091a2b3c",
+  "status": "ahead",
+  "ahead_by": 2,
+  "behind_by": 0,
+  "total_commits": 2,
+  "commits": [
+    {
+      "sha": "9f1c2b7d4e5a6f708192a3b4c5d6e7f8091a2b3c",
+      "html_url": "https://github.com/vercel-labs/skills/commit/9f1c2b7d4e5a6f708192a3b4c5d6e7f8091a2b3c",
+      "commit": {
+        "author": {
+          "name": "Vercel",
+          "email": "support@vercel.com",
+          "date": "2025-11-04T09:12:44Z"
+        },
+        "message": "fix(find-skills): correct the install command for codex",
+        "url": "https://api.github.com/repos/vercel-labs/skills/git/commits/9f1c2b7d4e5a6f708192a3b4c5d6e7f8091a2b3c"
+      }
+    },
+    {
+      "sha": "0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d",
+      "html_url": "https://github.com/vercel-labs/skills/commit/0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d",
+      "commit": {
+        "author": {
+          "name": "Vercel",
+          "email": "support@vercel.com",
+          "date": "2025-11-01T16:03:09Z"
+        },
+        "message": "feat: add batch mode to find-skills",
+        "url": "https://api.github.com/repos/vercel-labs/skills/git/commits/0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d"
+      }
+    }
+  ],
+  "files": [
+    {
+      "sha": "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
+      "filename": "skills/find-skills/SKILL.md",
+      "status": "modified",
+      "additions": 18,
+      "deletions": 4,
+      "changes": 22,
+      "blob_url": "https://github.com/vercel-labs/skills/blob/9f1c2b7d4e5a6f708192a3b4c5d6e7f8091a2b3c/skills/find-skills/SKILL.md",
+      "raw_url": "https://github.com/vercel-labs/skills/raw/9f1c2b7d4e5a6f708192a3b4c5d6e7f8091a2b3c/skills/find-skills/SKILL.md",
+      "contents_url": "https://api.github.com/repos/vercel-labs/skills/contents/skills/find-skills/SKILL.md?ref=9f1c2b7d4e5a6f708192a3b4c5d6e7f8091a2b3c",
+      "patch": "@@ -1,3 +1,5 @@"
+    },
+    {
+      "sha": "2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e",
+      "filename": "skills/find-skills/README.md",
+      "status": "added",
+      "additions": 6,
+      "deletions": 0,
+      "changes": 6,
+      "blob_url": "https://github.com/vercel-labs/skills/blob/9f1c2b7d4e5a6f708192a3b4c5d6e7f8091a2b3c/skills/find-skills/README.md",
+      "raw_url": "https://github.com/vercel-labs/skills/raw/9f1c2b7d4e5a6f708192a3b4c5d6e7f8091a2b3c/skills/find-skills/README.md",
+      "contents_url": "https://api.github.com/repos/vercel-labs/skills/contents/skills/find-skills/README.md?ref=9f1c2b7d4e5a6f708192a3b4c5d6e7f8091a2b3c",
+      "patch": "@@ -0,0 +1,6 @@"
+    }
+  ]
+}

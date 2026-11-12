@@ -30,6 +30,7 @@
     "collect:skills": "node scripts/collect-skills.mjs",
     "collect:batch": "node scripts/collect-batch.mjs",
     "summaries:regenerate": "node scripts/regenerate-summaries.mjs",
+    "sync:versions": "node scripts/sync-versions.mjs",
     "postinstall": "node scripts/postinstall.mjs",
     "compose:up": "docker compose up -d --build",
     "compose:down": "docker compose down",

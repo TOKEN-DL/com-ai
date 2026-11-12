@@ -287,6 +287,55 @@ code {
   padding: 0.2rem 0;
 }
 
+/* 版本历史与更新提示（票 #16） */
+.version-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.version-list li {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.version-list li:last-child {
+  border-bottom: none;
+}
+
+.version-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+
+.version-changelog {
+  margin: 0.25rem 0 0;
+  white-space: pre-wrap;
+  color: var(--muted);
+}
+
+.version-update-notice {
+  margin: 0.75rem 0;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--ok);
+  border-radius: 0.4rem;
+}
+
+.version-update-notice a {
+  margin-left: 0.4rem;
+}
+
+.update-badge {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--ok);
+  border-radius: 0.25rem;
+  color: var(--ok);
+  font-size: 0.85rem;
+}
+
 .copy-button {
   border: 1px solid var(--line);
   background: var(--bg);

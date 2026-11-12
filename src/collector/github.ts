@@ -64,6 +64,25 @@ export function readGitHubToken(): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+/**
+ * GitHub API 的请求头。
+ *
+ * 单独抽出来是因为**版本同步（#16）也要打 GitHub API**：
+ * 请求头只有一份定义，别处再抄一遍迟早抄歪（少一个 `X-GitHub-Api-Version` 就可能被拒）。
+ *
+ * ⚠️ token **只发给 api.github.com**，raw 域不带 token。
+ */
+export function githubApiHeaders(token: string | null): Record<string, string> {
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -355,13 +374,6 @@ export class GitHubRepoAdapter implements SourceAdapter<GitHubRepoSourceConfig> 
 
   /** GitHub API 请求头。token 只发给 api.github.com。 */
   private apiHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-    };
-    if (this.token) {
-      headers.Authorization = `Bearer ${this.token}`;
-    }
-    return headers;
+    return githubApiHeaders(this.token);
   }
 }

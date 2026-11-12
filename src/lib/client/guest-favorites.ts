@@ -19,6 +19,14 @@ export type FavoriteItem = {
   license: string | null;
   favoriteCount: number;
   likeCount: number;
+  /**
+   * 收藏之后有没有新版本（票 #16）。
+   *
+   * 游客态的列表从 `/api/assets?slugs=` 取，服务端认不出设备指纹时不给这个标记 ——
+   * 游客的更新提示在**详情页**上（那里会带上设备标识再问一次）。
+   */
+  hasUpdate?: boolean;
+  latestVersion?: { version: string; label: string } | null;
 };
 
 /** 游客态收藏页的取数结果。 */

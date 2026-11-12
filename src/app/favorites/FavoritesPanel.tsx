@@ -81,6 +81,12 @@ export function FavoritesPanel() {
         {items.map((item) => (
           <li key={item.slug}>
             <Link href={`/skills/${item.slug}`}>{item.displayName}</Link>
+            {/* 订阅式提示（票 #16）：收藏之后上游出了新版本，列表里直接标出来。 */}
+            {item.hasUpdate ? (
+              <span className="update-badge">
+                有新版本{item.latestVersion ? ` · ${item.latestVersion.label}` : ""}
+              </span>
+            ) : null}
             <span className="asset-meta">
               {item.repoOwner && item.repoName ? `${item.repoOwner}/${item.repoName}` : "—"}
               {item.license ? ` · ${item.license}` : ""}

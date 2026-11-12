@@ -9,6 +9,14 @@ import type { ContentTier, SummarySource } from "@prisma/client";
 
 import { getAssetBySlug } from "@/lib/asset-query";
 import { SKILL_HOSTS } from "@/lib/skill-install";
+import {
+  getUpdateStatus,
+  listVersions,
+  toVersionView,
+  type UpdateStatus,
+  type VersionView,
+} from "@/lib/version-store";
+import type { InteractionActor } from "@/lib/interactions";
 
 export type InstallCommand = {
   /// 宿主标识。
@@ -74,6 +82,13 @@ export type SkillDetailView = {
   contentAvailable: boolean;
   /// 原始 SKILL.md 全文（逐字，与上游一致）。仅 contentAvailable 为真时有值。
   contentBody: string | null;
+  /// 当前版本（上游 commit sha 或平台 semver）。
+  currentVersion: string | null;
+  /// 版本历史（新版本在前）。上游版本与平台发布版本在**同一张表**里，
+  /// 靠每条记录的 `origin` 区分来源。
+  versions: VersionView[];
+  /// 更新提示：收藏之后有没有新版本。给了 actor 才算。
+  update: UpdateStatus | null;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -121,8 +136,15 @@ function asInstallCommands(value: unknown): InstallCommand[] {
  * 取一个 Skill 的详情视图。
  *
  * 不是 Skill、或不存在，都返回 null。
+ *
+ * @param actor 当前互动主体（登录用户或游客设备指纹）。
+ *              给了就算「更新提示」：收藏之后有没有新版本。
+ *              不给（详情接口那样）就只返回版本历史，不带提示。
  */
-export async function getSkillDetail(slug: string): Promise<SkillDetailView | null> {
+export async function getSkillDetail(
+  slug: string,
+  actor?: InteractionActor | null,
+): Promise<SkillDetailView | null> {
   const asset = await getAssetBySlug(slug);
   if (!asset || asset.kind !== "SKILL") {
     return null;
@@ -137,6 +159,9 @@ export async function getSkillDetail(slug: string): Promise<SkillDetailView | nu
 
   const contentBody = asset.contentBody;
   const contentAvailable = asset.contentTier === "FULL" && typeof contentBody === "string";
+
+  // 版本历史：上游版本与平台发布版本在**同一张表**里，靠 `origin` 区分来源。
+  const versions = (await listVersions(asset.id)).map(toVersionView);
 
   return {
     slug: asset.slug,
@@ -166,5 +191,8 @@ export async function getSkillDetail(slug: string): Promise<SkillDetailView | nu
     installCmds: asInstallCommands(detail?.installCmds),
     contentAvailable,
     contentBody: contentAvailable ? contentBody : null,
+    currentVersion: asset.currentVersion,
+    versions,
+    update: actor ? await getUpdateStatus(asset.id, actor) : null,
   };
 }
