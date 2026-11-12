@@ -11,7 +11,7 @@
  *   - **场景**：这张卡片讲的是「什么时候用」；
  *   - **直达的 Skill**：点一下就跳到源资产的详情页。
  */
-import type { AssetKind } from "@prisma/client";
+import type { AssetKind, SummarySource } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 
@@ -29,6 +29,14 @@ export type ScenarioDetailView = {
   displayName: string;
   /// 场景描述（来源文字，截断过）。
   summaryZh: string | null;
+  /**
+   * 场景描述的来源标记。
+   *
+   * 页据此标注「AI 生成，版权归原作者」（spec 约束 2 的硬要求）——
+   * 场景短语可能来自 LLM 生成的「何时用」，也可能来自上游作者自述，
+   * 两者必须分开标注，不能一律当成「模板生成」。
+   */
+  summarySource: SummarySource | null;
   /// 场景短语原文。
   scenarioText: string;
   /// 场景短语的归一化键（去重用）。
@@ -99,6 +107,7 @@ export async function getScenarioDetail(slug: string): Promise<ScenarioDetailVie
     slug: asset.slug,
     displayName: asset.displayName,
     summaryZh: asset.summaryZh,
+    summarySource: asset.summarySource,
     scenarioText: detail.scenarioText,
     scenarioKey: detail.scenarioKey,
     origin: detail.origin,

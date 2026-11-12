@@ -54,7 +54,16 @@ export const MCP_REGISTRY_SCHEDULE = "23 5 * * *";
  * 每天拉一遍纯属浪费带宽。
  */
 export const PROMPT_REPO_SCHEDULE = "11 6 * * 1";
-/** 场景卡片派生：每天 05:41 跑一次（排在所有采集任务之后）。 */
+/**
+ * 场景卡片派生：每天 05:41 跑一次。
+ *
+ * 排在**产出 Skill 的采集任务之后**（榜单 03:17 / 站点地图 03:43 / 保留 04:07），
+ * 这样新采到的 Skill 当天就带上卡片。
+ *
+ * ⚠️ 它排在 Prompt 语料库（06:11）**之前** —— 但这不是问题：
+ *    派生只扫 `kind = "SKILL"`（见 `regenerateScenarioCards`），
+ *    Prompt 不参与派生，晚一轮不影响。
+ */
 export const SCENARIO_SCHEDULE = "41 5 * * *";
 
 export type CollectionTaskDefinition = {

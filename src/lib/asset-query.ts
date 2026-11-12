@@ -7,7 +7,15 @@
  * ⚠️ 这里只做「按主表字段取数」这一层；关键词检索（全文 + trigram + 标签矩阵）
  *    是 #5 的 SearchService 的事，不要在这里另写一套。
  */
-import type { Asset, AssetKind, McpDetail, Prisma, PromptDetail, SkillDetail } from "@prisma/client";
+import type {
+  Asset,
+  AssetKind,
+  McpDetail,
+  Prisma,
+  PromptDetail,
+  ScenarioDetail,
+  SkillDetail,
+} from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 
@@ -60,6 +68,8 @@ export type AssetWithDetail = Asset & {
   skillDetail: SkillDetail | null;
   mcpDetail: McpDetail | null;
   promptDetail: PromptDetail | null;
+  /** 场景卡片的扩展行（票 #12）。SCENARIO 之外恒为 null。 */
+  scenarioDetail: ScenarioDetail | null;
 };
 
 /** 按 slug 取详情，并按 kind 带上对应的扩展表。 */
@@ -78,7 +88,7 @@ export async function getAssetById(id: string): Promise<AssetWithDetail | null> 
   return asset ? withDetail(asset) : null;
 }
 
-/** 按 kind 读对应的那张 1:1 扩展表，另外两张保持 null。 */
+/** 按 kind 读对应的那张 1:1 扩展表，另外几张保持 null。 */
 async function withDetail(asset: Asset): Promise<AssetWithDetail> {
   const skillDetail =
     asset.kind === "SKILL"
@@ -92,6 +102,10 @@ async function withDetail(asset: Asset): Promise<AssetWithDetail> {
     asset.kind === "PROMPT"
       ? await prisma.promptDetail.findUnique({ where: { assetId: asset.id } })
       : null;
+  const scenarioDetail =
+    asset.kind === "SCENARIO"
+      ? await prisma.scenarioDetail.findUnique({ where: { assetId: asset.id } })
+      : null;
 
-  return { ...asset, skillDetail, mcpDetail, promptDetail };
+  return { ...asset, skillDetail, mcpDetail, promptDetail, scenarioDetail };
 }

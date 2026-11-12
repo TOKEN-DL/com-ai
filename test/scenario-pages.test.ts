@@ -28,6 +28,7 @@ import { deriveScenarioCards } from "@/lib/scenario-service";
 import { createSession, SESSION_COOKIE } from "@/lib/session";
 
 const SKILL_SLUG = "pdf-batch-processor";
+const FRONTMATTER_ONLY_SLUG = "frontmatter-only-skill";
 const WHEN_TO_USE = "当需要批量处理 PDF 文件时使用。";
 
 /** 造一个 FULL 档的 Skill（带「何时用」与 frontmatter 自述）。 */
@@ -43,11 +44,41 @@ async function seedSkill(): Promise<void> {
     whenToUse: WHEN_TO_USE,
     howToUse: "装上之后在会话里调用即可。",
     heatScore: 7,
+    repoOwner: "example",
+    repoName: "pdf-tools",
+    repoUrl: "https://github.com/example/pdf-tools",
     detail: {
       skill: {
         frontmatter: {
           name: SKILL_SLUG,
           description: "Batch process PDF files into a single archive.",
+        },
+      },
+    },
+  });
+}
+
+/** 造一个只有 frontmatter 自述、没有「何时用」的 Skill（场景来自上游作者自述）。 */
+async function seedFrontmatterOnlySkill(): Promise<void> {
+  await writeAsset({
+    kind: "SKILL",
+    slug: FRONTMATTER_ONLY_SLUG,
+    displayName: "只有自述的技能",
+    license: "MIT",
+    contentBody: "上游正文。",
+    summaryZh: "上游自述摘要。",
+    summarySource: "LLM",
+    whenToUse: null,
+    howToUse: null,
+    heatScore: 3,
+    repoOwner: "example",
+    repoName: "subtitle-tools",
+    repoUrl: "https://github.com/example/subtitle-tools",
+    detail: {
+      skill: {
+        frontmatter: {
+          name: FRONTMATTER_ONLY_SLUG,
+          description: "Use this when you need to transcribe subtitles from a video file.",
         },
       },
     },
@@ -158,6 +189,51 @@ describe("场景卡片的页面", () => {
     expect(html).toContain(WHEN_TO_USE);
     expect(html).toContain(`href="/skills/${SKILL_SLUG}"`);
     expect(html).toContain("批量处理 PDF 工具");
+  });
+});
+
+describe("场景卡片的简介来源标注", () => {
+  it("卡片抄的是 LLM 生成的「何时用」时，来源标记必须是 LLM，不能当成模板生成", async () => {
+    await seedSkill();
+    const cardSlug = await derive();
+
+    const card = await prisma.asset.findUniqueOrThrow({ where: { slug: cardSlug } });
+    // spec 约束 2：LLM 生成的简介必须标注「AI 生成，版权归原作者」。
+    // 标成 TEMPLATE 就是漏标 —— 那段文字确实是模型写的。
+    expect(card.summarySource).toBe("LLM");
+  });
+
+  it("卡片页把「AI 生成，版权归原作者」标出来，并给出原仓库链接与许可证", async () => {
+    await seedSkill();
+    const cardSlug = await derive();
+
+    const html = renderToStaticMarkup(
+      await ScenarioDetailPage({ params: Promise.resolve({ slug: cardSlug }) }),
+    );
+
+    expect(html).toContain("AI 生成，版权归原作者");
+    // 标注之外，还要能一键回到原文出处（仓库链接 + 许可证标识）。
+    expect(html).toContain("原文与版权归属");
+    expect(html).toContain("https://github.com/example/pdf-tools");
+    expect(html).toContain("mit");
+  });
+
+  it("卡片抄的是上游作者自述时，标成「人工撰写」，不冒认成 AI 生成", async () => {
+    await seedFrontmatterOnlySkill();
+    const asset = await prisma.asset.findUniqueOrThrow({
+      where: { slug: FRONTMATTER_ONLY_SLUG },
+    });
+    const outcome = await deriveScenarioCards(asset.id);
+    expect(outcome.derived).toBeGreaterThan(0);
+
+    const card = await prisma.asset.findUniqueOrThrow({ where: { slug: outcome.cardSlugs[0] } });
+    expect(card.summarySource).toBe("HUMAN");
+
+    const html = renderToStaticMarkup(
+      await ScenarioDetailPage({ params: Promise.resolve({ slug: outcome.cardSlugs[0] }) }),
+    );
+    expect(html).toContain("人工撰写");
+    expect(html).not.toContain("AI 生成，版权归原作者");
   });
 });
 

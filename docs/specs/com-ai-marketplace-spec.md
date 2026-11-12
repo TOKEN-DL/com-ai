@@ -165,7 +165,8 @@
 - 放弃 PulseMCP（Cloudflare 拦截、robots 禁止 AI bot、条款限定仅可引用）。
 
 **Prompt 管道**
-- 文本类：`f/prompts.chat` 的 `prompts.csv`（实测 10,471,671 字节、**2,898 条记录**、恒 5 列、0 脏行；提示词内容 CC0 1.0，但 GitHub `spdx_id` 是 `NOASSERTION`，**须按仓库覆盖**）；中文类：`PlexPt/awesome-chatgpt-prompts-zh`（MIT，prompt 在 `prompts-zh.json`，124 条）。
+- 文本类：`f/prompts.chat` 的 `prompts.csv`（实测 10,471,671 字节、**2,898 条记录**、恒 5 列、0 脏行；提示词内容 CC0 1.0，但 GitHub `spdx_id` 是 `NOASSERTION`，**须按仓库覆盖**）；中文类：`CHENJIAMIAN/awesome-chatgpt-prompts-zh-CN`（CC0 1.0，prompt 在 `chatgpt_prompts-zh-CN.json`，实测 2,172 条）。
+  - ⚠️ **此处曾写 `PlexPt/awesome-chatgpt-prompts-zh`（MIT / `prompts-zh.json` / 124 条）—— 实施时该仓库已 404（`GET /repos/...` 返回 Not Found，GitHub 上也搜不到同名仓库），改用同源的中文分支**：许可证更宽松（CC0 1.0，LICENSE 全文 + GitHub `spdx_id` 都认），README 明确写「本仓库的中文译文同样以 CC0-1.0 发布」。条数也从 124 变成 2,172。
 - 视频/图片类**必须单独收集**（通用文本库里没有）：`YouMind-OpenLab/awesome-seedance-2-prompts`（106 条，CC BY 4.0，须署名）、`bytedance/Video-As-Prompt`（55 个 .txt，Apache-2.0）、`ZeroLu/awesome-seedance`（MIT）、`Anil-matcha/awesome-flux-3-api-prompts`（**无 LICENSE 文件** → 只能 METADATA_ONLY）、`wide-trace/open-higgsfield`（25 条在 `data.ts`，**无 LICENSE 文件** → 只能 METADATA_ONLY）。
 - ⚠️ **通用 CSV 语料的 `type` 字段只有 TEXT / STRUCTURED / IMAGE，没有 VIDEO 与 AUDIO**；`act` 是标题不是分类。
 - **音乐类已实测确认有可用来源，四模态覆盖不需要降级**（实测明细见 `.com-ai-context/verified-music-prompts.md`）：**本期只收零争议的 CC0/MIT 自建源** —— `samuelgrupolimex-prog/suno-style-recipes`（**564 条**，CC0 1.0 全文，字段含 bpm/weirdness/style_influence/structure）、`naqashmunir21/awesome-suno-prompts`（**272 条唯一**，CC0 1.0 全文；README 宣称「2,000+」实为虚高 7.4 倍）、`musegen/awesome-music-prompts`（**106 条**，MIT）、`yzfly/awesome-music-prompts`（23 条，MIT）、`suno-ai-farm/awesome-ai-music-prompts`（14 条，MIT，覆盖 Stable Audio / MusicGen / MusicFX 与四平台变体），合计 **979 条 FULL 档正文、零署名义务**。

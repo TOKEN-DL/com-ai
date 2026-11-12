@@ -36,11 +36,16 @@
  */
 import { createHash } from "node:crypto";
 
-import type { AssetKind } from "@prisma/client";
+import type { AssetKind, SummarySource } from "@prisma/client";
 
 import { writeAsset } from "@/lib/asset-writer";
 import { prisma } from "@/lib/prisma";
-import { deriveScenarios, type DerivedScenario } from "@/lib/scenario-derivation";
+import {
+  deriveScenarios,
+  readFrontmatterDescription,
+  type DerivedScenario,
+  type ScenarioOrigin,
+} from "@/lib/scenario-derivation";
 
 /**
  * 场景卡片在 `Asset.sourceId` 上的标记。
@@ -138,7 +143,9 @@ type SourceText = {
   description: string | null;
 };
 
-/** 卡片的「场景描述」：按来源取原文，截断到卡片摘要的长度。 */
+/**
+ * 卡片的「场景描述」：按来源取原文，截断到卡片摘要的长度。
+ */
 function buildCardSummary(source: SourceText, scenario: DerivedScenario): string | null {
   const text = scenario.origin === "whenToUse" ? source.whenToUse : source.description;
   if (!text) {
@@ -146,6 +153,32 @@ function buildCardSummary(source: SourceText, scenario: DerivedScenario): string
   }
   const trimmed = text.trim();
   return trimmed.length > 0 ? truncate(trimmed, MAX_SUMMARY_LENGTH) : null;
+}
+
+/**
+ * 卡片简介的来源标记 —— **必须如实反映这段文字是谁写的**。
+ *
+ * spec 约束 2 是个硬要求：**LLM 生成的简介必须标注「AI 生成，版权归原作者」**。
+ * 把模型写的文字标成别的，等于没标 —— 那就是违规，不只是不好看。
+ *
+ * - `whenToUse`（「何时用」）：这段文字是票 #7 生成的，
+ *   源资产是什么标记，卡片就是什么标记：
+ *   模型写的 → `LLM`；模型挂了走模板降级 → `TEMPLATE`；运营人工改过 → `HUMAN`。
+ * - `frontmatter`（上游作者自述）：是**人写的**（上游仓库的作者自己写的），
+ *   既不是模型也不是模板 → `HUMAN`。
+ *
+ * ⚠️ 这里的默认值是 `TEMPLATE` 而不是 `LLM`：源资产没有标记说明它没走过
+ *    摘要流程（「何时用」多半是空的），这时候保守地按「非模型内容」处理，
+ *    宁可少标也不误标 —— 误标成 AI 会让用户以为作者授权我们改写。
+ */
+function buildCardSummarySource(
+  origin: ScenarioOrigin,
+  sourceSummarySource: SummarySource | null,
+): SummarySource {
+  if (origin === "frontmatter") {
+    return "HUMAN";
+  }
+  return sourceSummarySource ?? "TEMPLATE";
 }
 
 /**
@@ -197,7 +230,7 @@ export async function deriveScenarioCards(sourceAssetId: string): Promise<Scenar
 
   const sourceText: SourceText = {
     whenToUse: source.whenToUse,
-    description: readDescription(source.skillDetail?.frontmatter),
+    description: readFrontmatterDescription(source.skillDetail?.frontmatter),
   };
 
   // 许可证分层：只有 FULL 档能派生场景（见文件头的说明）。
@@ -241,8 +274,8 @@ export async function deriveScenarioCards(sourceAssetId: string): Promise<Scenar
       license: source.license,
       contentBody: null,
       summaryZh: buildCardSummary(sourceText, scenario),
-      // 卡片的简介是**规则派生**出来的，不是人工写的，也不是模型写的。
-      summarySource: "TEMPLATE",
+      // 来源标记如实反映「这段文字是谁写的」—— 模型写的必须标 LLM（见 buildCardSummarySource）。
+      summarySource: buildCardSummarySource(scenario.origin, source.summarySource),
       whenToUse: null,
       howToUse: null,
       repoOwner: source.repoOwner,
@@ -274,19 +307,6 @@ export async function deriveScenarioCards(sourceAssetId: string): Promise<Scenar
   const removed = await removeStaleCards(source.id, cardSlugs);
 
   return { sourceSlug: source.slug, derived: scenarios.length, cardSlugs, removed };
-}
-
-/** 从 frontmatter 里取 description（结构与派生规则保持一致）。 */
-function readDescription(frontmatter: unknown): string | null {
-  if (typeof frontmatter !== "object" || frontmatter === null || Array.isArray(frontmatter)) {
-    return null;
-  }
-  const description = (frontmatter as Record<string, unknown>).description;
-  if (typeof description !== "string") {
-    return null;
-  }
-  const trimmed = description.trim();
-  return trimmed.length > 0 ? trimmed : null;
 }
 
 /** 批量派生的入参。 */

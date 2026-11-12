@@ -11,58 +11,17 @@
  *
  * ## 什么时候需要它
  *
- * - **站上新增了一批资产**（采集跑完之后）：入库时已经顺手派生过一次，
- *   这个命令是兜底 —— 采集那一轮没派生成功的条目在这里补上。
+ * - **站上新增了一批资产**（采集跑完之后）：派生是**独立定时任务**（`scenarios` cron），
+ *   这个命令是兜底 —— 那一轮没派生成功的条目在这里补上。
  * - **派生规则改了**：规则一改，卡片内容就会变，跑一次这个命令全部重算。
  *   派生是幂等的，重跑不会产生重复卡片。
  */
+import { parseCliArgs } from "@/collector/cli-args";
 import { prisma } from "@/lib/prisma";
 import { pruneOrphanScenarioCards, regenerateScenarioCards } from "@/lib/scenario-service";
 
-type Options = {
-  limit?: number;
-  slugs: string[];
-  dryRun: boolean;
-  prune: boolean;
-};
-
-function parseArgs(argv: string[]): Options {
-  const options: Options = { slugs: [], dryRun: false, prune: false };
-
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-
-    if (arg === "--limit") {
-      const value = Number(process.argv[i + 1]);
-      i += 1;
-      if (Number.isFinite(value) && value > 0) {
-        options.limit = Math.floor(value);
-      }
-      continue;
-    }
-    if (arg === "--slug") {
-      const value = process.argv[i + 1];
-      i += 1;
-      if (typeof value === "string" && value.trim().length > 0) {
-        options.slugs.push(value.trim());
-      }
-      continue;
-    }
-    if (arg === "--dry-run") {
-      options.dryRun = true;
-      continue;
-    }
-    if (arg === "--prune") {
-      options.prune = true;
-      continue;
-    }
-  }
-
-  return options;
-}
-
 async function main(): Promise<void> {
-  const options = parseArgs(process.argv.slice(2));
+  const options = parseCliArgs(process.argv.slice(2));
 
   if (!options.dryRun && !process.env.DATABASE_URL) {
     console.error("缺少 DATABASE_URL，无法入库（只想看统计就加 --dry-run）。");

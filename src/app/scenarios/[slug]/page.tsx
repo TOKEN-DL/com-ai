@@ -6,6 +6,7 @@ import { listAssetComments } from "@/lib/comments";
 import { getScenarioDetail } from "@/lib/scenario-detail";
 
 import { CommentsSection } from "@/app/skills/[slug]/CommentsSection";
+import { SummarySourceNote } from "@/app/SummaryUsage";
 
 // 详情要实时读库，不许被静态化。
 export const dynamic = "force-dynamic";
@@ -62,6 +63,21 @@ export default async function ScenarioDetailPage({
         <section className="summary">
           <h2>场景描述</h2>
           <p>{card.summaryZh}</p>
+          {/* 「AI 生成，版权归原作者」/「人工撰写」/「模板生成」——
+              场景描述可能抄的是模型写的「何时用」，也可能抄的是上游作者自述，
+              两者必须分开标：spec 约束 2 要求 AI 生成的简介必须标注。 */}
+          <SummarySourceNote source={card.summarySource} />
+          {/* AI 生成的内容要能一键回到原文出处 —— 署名与原仓库链接放在一起，
+              读者不用往下翻就知道这段话依据的是哪份原文。 */}
+          {card.summarySource === "LLM" && card.source?.repoUrl ? (
+            <p className="note">
+              原文与版权归属：{" "}
+              <a href={card.source.repoUrl} rel="noreferrer noopener" target="_blank">
+                {repoLabel}
+              </a>
+              {card.source.license ? ` · ${card.source.license}` : ""}
+            </p>
+          ) : null}
           <p className="note">
             这张卡片由站上已收录 Skill 的使用场景自动派生，场景短语本身也参与站内检索。
           </p>

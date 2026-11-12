@@ -22,62 +22,12 @@
  * 这里**故意不提供**「连人工覆盖的一起重跑」的开关 ——
  * 人工纠正过的东西不该被机器改回去。
  */
+import { parseCliArgs } from "@/collector/cli-args";
 import { prisma } from "@/lib/prisma";
 import { regenerateSummaries, SUMMARY_GENERATOR_VERSION } from "@/lib/summary-service";
 
-type Options = {
-  limit?: number;
-  version?: string;
-  slugs: string[];
-  force: boolean;
-  dryRun: boolean;
-};
-
-function parseArgs(argv: string[]): Options {
-  const options: Options = { slugs: [], force: false, dryRun: false };
-
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-
-    if (arg === "--limit") {
-      const value = Number(process.argv[i + 1]);
-      i += 1;
-      if (Number.isFinite(value) && value > 0) {
-        options.limit = Math.floor(value);
-      }
-      continue;
-    }
-    if (arg === "--version") {
-      const value = process.argv[i + 1];
-      i += 1;
-      if (typeof value === "string" && value.trim().length > 0) {
-        options.version = value.trim();
-      }
-      continue;
-    }
-    if (arg === "--slug") {
-      const value = process.argv[i + 1];
-      i += 1;
-      if (typeof value === "string" && value.trim().length > 0) {
-        options.slugs.push(value.trim());
-      }
-      continue;
-    }
-    if (arg === "--force") {
-      options.force = true;
-      continue;
-    }
-    if (arg === "--dry-run") {
-      options.dryRun = true;
-      continue;
-    }
-  }
-
-  return options;
-}
-
 async function main(): Promise<void> {
-  const options = parseArgs(process.argv.slice(2));
+  const options = parseCliArgs(process.argv.slice(2));
 
   if (!options.dryRun && !process.env.DATABASE_URL) {
     console.error("缺少 DATABASE_URL，无法入库（只想看统计就加 --dry-run）。");
