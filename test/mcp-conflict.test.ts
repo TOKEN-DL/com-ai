@@ -164,6 +164,20 @@ describe("冲突检测纯函数", () => {
 
     expect(conflicts).toEqual([]);
   });
+
+  it("纯函数：不改写传进来的候选与集合", () => {
+    const candidate = { slug: "candidate", envVars: ["GCS_BUCKET"], ports: [3000] };
+    const installed = [
+      { slug: "installed", displayName: "已装 Server", envVars: ["GCS_BUCKET"], ports: [3000] },
+    ];
+    const candidateBefore = structuredClone(candidate);
+    const installedBefore = structuredClone(installed);
+
+    detectMcpConflicts(candidate, installed);
+
+    expect(candidate).toEqual(candidateBefore);
+    expect(installed).toEqual(installedBefore);
+  });
 });
 
 describe("冲突文案", () => {
