@@ -24,6 +24,11 @@ import { PROMPT_SOURCES } from "@/collector/prompt-sources";
 import { runRetention } from "@/collector/retention";
 import { SkillsShAdapter } from "@/collector/skills-sh";
 import { collectFromSources, type SourceRequest } from "@/collector/pipeline";
+import { GitHubVersionSource } from "@/collector/github-versions";
+import {
+  syncUpstreamVersions,
+  type UpstreamVersionSource,
+} from "@/collector/version-sync";
 import {
   findLastScenarioRunStartedAt,
   pruneOrphanScenarioCards,
@@ -65,6 +70,14 @@ export const PROMPT_REPO_SCHEDULE = "11 6 * * 1";
  *    Prompt 不参与派生，晚一轮不影响。
  */
 export const SCENARIO_SCHEDULE = "41 5 * * *";
+/**
+ * 上游版本同步：每天 06:23 跑一次。
+ *
+ * 排在**所有采集任务之后**（榜单 03:17 / 站点地图 03:43 / 保留 04:07 /
+ * MCP 05:23 / 场景卡片 05:41 / Prompt 06:11），这样新采到的资产当轮就能记上版本，
+ * 不必等到第二天。
+ */
+export const VERSION_SYNC_SCHEDULE = "23 6 * * *";
 
 export type CollectionTaskDefinition = {
   /// 采集源标识（运行记录与告警都按它归集）。
@@ -98,6 +111,12 @@ export type BuildTasksOptions = {
   mcpSchedule?: string;
   /// 场景卡片派生的 cron 表达式。
   scenarioSchedule?: string;
+  /// 上游版本同步的 cron 表达式。
+  versionSyncSchedule?: string;
+  /// 上游版本取数实现（测试注入 fixture 驱动的假实现）。
+  versionSource?: UpstreamVersionSource;
+  /// 一轮最多同步多少个资产的版本（GitHub 配额有限）。
+  versionSyncMaxAssets?: number;
   /**
    * MCP 官方 registry 的适配器（测试可注入假实现）。
    */
@@ -272,7 +291,72 @@ export function buildCollectionTasks(options: BuildTasksOptions = {}): Collectio
       schedule:
         options.scenarioSchedule ?? resolveSchedule("CRON_SCENARIOS", SCENARIO_SCHEDULE),
     }),
+    createVersionSyncTask({
+      schedule:
+        options.versionSyncSchedule ?? resolveSchedule("CRON_VERSION_SYNC", VERSION_SYNC_SCHEDULE),
+      source: options.versionSource,
+      limit: options.versionSyncMaxAssets ?? resolveNumber("VERSION_SYNC_MAX_ASSETS", 50),
+    }),
   ];
+}
+
+/**
+ * 上游版本同步任务（票 #16）。
+ *
+ * ## 为什么是定时任务，不只是命令行
+ *
+ * 票 #16 的验收标准是「上游仓库有新 commit 时，变更日志被生成并入库」。
+ * 「有新 commit 时」= **自动**发生，所以它必须是一条定时任务；
+ * 命令行 `pnpm sync:versions` 只是同一条路径的手动入口与兜底。
+ * 没有这条 cron 的话，站上的 `AssetVersion` 永远是空的，
+ * 收藏后的「上游有新版本」提示也就永远不会出现。
+ *
+ * ## 一轮只扫 limit 个
+ *
+ * GitHub 的 commit 列表接口**未认证只有 60 次/小时**（实测见
+ * .com-ai-context/verified-endpoints.md），一个资产至少一次调用。
+ * 所以一轮默认只扫 50 个，剩下留给下一轮 ——
+ * 扫描顺序按「最久没同步的优先」（见 `syncUpstreamVersions`），
+ * 所以一轮一轮能轮完所有资产，不会永远只扫同一批。
+ *
+ * 请求**带缓存**（与其它采集任务同一套）：同一个仓库的 commit 列表
+ * 在缓存有效期内只打一次 GitHub。
+ */
+function createVersionSyncTask(options: {
+  schedule: string;
+  source?: UpstreamVersionSource;
+  limit: number;
+}): CollectionTaskDefinition {
+  return {
+    id: "version-sync:upstream",
+    sourceType: "version-sync",
+    schedule: options.schedule,
+    task: async (): Promise<CollectionTaskResult> => {
+      const source =
+        options.source ??
+        new GitHubVersionSource({
+          http: createCachingHttpClient({
+            base: createHttpClient(),
+            dir: process.env.COLLECTOR_CACHE_DIR ?? DEFAULT_CACHE_DIR,
+            ttlMs: Number(process.env.COLLECTOR_CACHE_TTL_MS ?? DEFAULT_CACHE_TTL_MS),
+          }),
+        });
+
+      const report = await syncUpstreamVersions({ source, limit: options.limit });
+
+      return {
+        fetched: report.scanned,
+        // 「记上版本」和「发现有新版本并回写」都算写库。
+        written: report.updated + report.recorded,
+        failed: report.failures.length,
+        failures: report.failures.length,
+        error:
+          report.failures.length > 0
+            ? report.failures.map((failure) => `${failure.slug}：${failure.error}`).join("；")
+            : undefined,
+      };
+    },
+  };
 }
 
 /**

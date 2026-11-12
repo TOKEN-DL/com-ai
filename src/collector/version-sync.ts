@@ -345,6 +345,18 @@ export async function syncUpstreamVersions(
       archivedAt: null,
       repoOwner: { not: null },
       repoName: { not: null },
+      // ⚠️ **只同步 Skill**。
+      //
+      // 「上游版本」指的是**上游仓库里的那个文件**换了 commit：
+      // 只有 Skill 有仓库内路径（`SkillDetail.skillPath`）。
+      // Prompt 是语料文件（一个仓库里一堆 CSV/JSON，不是单个文件），
+      // 场景卡片是**派生**出来的（上游根本没有这个文件）——
+      // 给它们记「上游版本」没有意义。
+      //
+      // 更要紧的是**配额**：GitHub 的 commit 列表接口未认证只有 60 次/小时，
+      // 一个资产一次调用。扫到 Prompt / 卡片上就是白烧配额，
+      // Skill 反而排不上队（一轮 limit 个，要轮 127 天才轮得到 Skill）。
+      kind: "SKILL",
     },
     // **按上次同步时间排序**：从没同步过的先来，之后是最久没同步的。
     // 这样「一轮只扫 N 个」（GitHub 配额有限）也能一轮一轮轮完所有资产，
