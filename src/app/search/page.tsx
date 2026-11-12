@@ -80,6 +80,11 @@ export default async function SearchPage({
             </option>
           ))}
         </select>
+        {/* 依赖筛选（票 #17）要跟着表单一起提交：
+            否则换个关键词就把「只看依赖了 X 的资产」悄悄丢了。 */}
+        {(query.filters.dependsOn ?? []).map((slug) => (
+          <input key={slug} type="hidden" name="dependsOn" value={slug} />
+        ))}
         <button className="copy-button" type="submit">
           搜索
         </button>
@@ -158,6 +163,16 @@ export default async function SearchPage({
             {query.q.length > 0 ? `（关键词「${query.q}」）` : ""}，第 {result.page} /
             {Math.max(result.totalPages, 1)} 页。
           </p>
+
+          {/* 依赖筛选（票 #17）：当前只在看「依赖了某个资产」的条目。 */}
+          {query.filters.dependsOn && query.filters.dependsOn.length > 0 ? (
+            <p className="search-count">
+              只看依赖了 {query.filters.dependsOn.join("、")} 的资产。
+              <Link href={`/search?${buildSearchParams(query, { dependsOn: [] })}`}>
+                取消这个筛选
+              </Link>
+            </p>
+          ) : null}
 
           {result.items.length === 0 ? (
             <p className="badge-muted">没有匹配的条目，换个关键词试试。</p>
