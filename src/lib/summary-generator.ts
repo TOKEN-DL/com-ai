@@ -136,7 +136,7 @@ const TOOL_LABELS: Record<string, string> = {
 };
 
 /** 取目标工具的展示名列表（去掉非工具标签、去重、保序）。 */
-function formatToolLabels(toolTags: string[] | undefined): string[] {
+export function formatToolLabels(toolTags: string[] | undefined): string[] {
   const labels: string[] = [];
   for (const tag of toolTags ?? []) {
     if (NON_TOOL_TAGS.has(tag)) {

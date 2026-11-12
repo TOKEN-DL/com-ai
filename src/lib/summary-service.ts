@@ -68,8 +68,11 @@ type RegenerateAsset = Prisma.AssetGetPayload<{ include: typeof REGENERATE_INCLU
  *   - 跑一次 {@link regenerateSummaries} 就会用新版本重新生成。
  *
  * 换句话说，「模型或提示词变更后批量重跑」= 改这个常量 + 跑一次重跑。
+ *
+ * v2（票 #26）：提示词加上了**模态与目标工具** —— 模型得知道
+ * 「这是条音乐提示词、目标是 Suno」，否则写出来的「何时用」泛泛而谈。
  */
-export const SUMMARY_GENERATOR_VERSION = "v1";
+export const SUMMARY_GENERATOR_VERSION = "v2";
 
 /** 内容 hash（SHA-256 十六进制）。null / undefined 视为空内容。 */
 export function computeContentHash(content: string | null | undefined): string {

@@ -8,6 +8,7 @@
  *     pnpm summaries:regenerate --slug foo-bar       # 只重跑某一条
  *     pnpm summaries:regenerate --version v2         # 用指定的生成器版本重跑
  *     pnpm summaries:regenerate --force              # 忽略缓存，强制重新调模型
+ *     pnpm summaries:regenerate --concurrency 8       # 同时跑 8 条
  *     pnpm summaries:regenerate --dry-run            # 只统计，不写库
  *
  * ## 什么时候需要它
@@ -61,6 +62,7 @@ async function main(): Promise<void> {
     ...(options.limit === undefined ? {} : { limit: options.limit }),
     ...(options.slugs.length > 0 ? { slugs: options.slugs } : {}),
     ...(options.force ? { ignoreCache: true } : {}),
+    ...(options.concurrency === undefined ? {} : { concurrency: options.concurrency }),
   });
 
   console.log(
