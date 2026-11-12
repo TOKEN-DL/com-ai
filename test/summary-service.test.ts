@@ -465,4 +465,126 @@ describe("批量重跑", () => {
     expect(report.scanned).toBe(0);
     expect(calls).toHaveLength(0);
   });
+
+  it("重跑时把 PROMPT 的模态与目标工具带进生成器入参", async () => {
+    const { generator, calls } = countingGenerator();
+
+    await writeAsset({
+      kind: "PROMPT",
+      slug: "music-prompt",
+      displayName: "Instrumental Companion (Same Arrangement)",
+      license: "CC0-1.0",
+      contentBody: BODY,
+      summaryZh: "旧初稿。",
+      summarySource: "TEMPLATE",
+      detail: {
+        prompt: {
+          modality: "MUSIC",
+          // act 恒等于标题，零信息量 —— 不该被当成作者自述带进去。
+          act: "Instrumental Companion (Same Arrangement)",
+          toolTags: ["suno"],
+          promptBody: BODY,
+        },
+      },
+    });
+
+    const report = await regenerateSummaries({ slugs: ["music-prompt"] }, { generator });
+
+    expect(report.regenerated).toBe(1);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].modality).toBe("MUSIC");
+    expect(calls[0].toolTags).toEqual(["suno"]);
+    expect(calls[0].description).toBeNull();
+  });
+
+  it("重跑跳过场景卡片 —— 卡片简介归派生逻辑管，重跑不该覆盖它", async () => {
+    const { generator, calls } = countingGenerator();
+
+    const source = await writeAsset({
+      kind: "SKILL",
+      slug: "card-source",
+      displayName: "pdf-skill",
+      license: "MIT",
+      contentBody: BODY,
+      summaryZh: "源简介。",
+      summarySource: "TEMPLATE",
+    });
+
+    await writeAsset({
+      kind: "SCENARIO",
+      slug: "card-with-body",
+      displayName: "user wants to review a branch",
+      license: "MIT",
+      // 卡片现在没有正文，但将来可能有 —— 不该靠「正文恰好是空的」来保护自己。
+      contentBody: "卡片正文（派生产物）",
+      summaryZh: "场景：user wants to review a branch。",
+      summarySource: "TEMPLATE",
+      detail: {
+        scenario: {
+          sourceAssetId: source.id,
+          sourceAssetSlug: source.slug,
+          scenarioText: "user wants to review a branch",
+          scenarioKey: "user wants to review a branch",
+          origin: "frontmatter",
+        },
+      },
+    });
+
+    const report = await regenerateSummaries({ slugs: ["card-with-body"] }, { generator });
+
+    expect(report.scanned).toBe(0);
+    expect(report.regenerated).toBe(0);
+    expect(calls).toHaveLength(0);
+
+    const card = await prisma.asset.findUniqueOrThrow({ where: { slug: "card-with-body" } });
+    expect(card.summaryZh).toBe("场景：user wants to review a branch。");
+  });
+
+  it("并发重跑：条数与计数都对，而且确实同时跑多条", async () => {
+    // 量「同时在飞」的调用数：串行时恒为 1，并发时才可能 > 1。
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const generator: SummaryGenerator = {
+      async generate() {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        inFlight -= 1;
+        return {
+          summaryZh: "AI 写的中文简介。",
+          whenToUse: "批量处理 PDF 时使用。",
+          howToUse: "安装后直接调用。",
+          tags: [],
+          source: "LLM",
+        };
+      },
+    };
+
+    // 三条**内容不同**的资产：内容 hash 不同，才不会互相命中缓存。
+    const bodies = [
+      "# a\n\n把 PDF 转成 Markdown。",
+      "# b\n\n把 PDF 转成 Markdown 并保留目录。",
+      "# c\n\n把 PDF 转成 Markdown 并打上页码。",
+    ];
+
+    for (const [index, body] of bodies.entries()) {
+      await writeAsset({
+        kind: "SKILL",
+        slug: `concurrent-${index}`,
+        displayName: "pdf-skill",
+        license: "MIT",
+        contentBody: body,
+        summaryZh: "旧初稿。",
+        summarySource: "TEMPLATE",
+      });
+    }
+
+    const report = await regenerateSummaries({ concurrency: 3 }, { generator });
+
+    expect(report.scanned).toBe(3);
+    expect(report.regenerated).toBe(3);
+    expect(report.cached).toBe(0);
+    expect(report.failed).toBe(0);
+    expect(maxInFlight).toBeGreaterThan(1);
+  });
 });
