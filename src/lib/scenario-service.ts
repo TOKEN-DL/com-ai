@@ -36,6 +36,8 @@
  */
 import { createHash } from "node:crypto";
 
+import type { AssetKind } from "@prisma/client";
+
 import { writeAsset } from "@/lib/asset-writer";
 import { prisma } from "@/lib/prisma";
 import { deriveScenarios, type DerivedScenario } from "@/lib/scenario-derivation";
@@ -407,6 +409,8 @@ export type ScenarioSourceRef = {
   assetId: string;
   slug: string;
   displayName: string;
+  /// 源资产的类型（详情页链接按它分派）。
+  kind: AssetKind;
   repoOwner: string | null;
   repoName: string | null;
 };
@@ -424,7 +428,14 @@ export async function listScenarioSources(
     select: {
       assetId: true,
       sourceAsset: {
-        select: { id: true, slug: true, displayName: true, repoOwner: true, repoName: true },
+        select: {
+          id: true,
+          slug: true,
+          displayName: true,
+          kind: true,
+          repoOwner: true,
+          repoName: true,
+        },
       },
     },
   });
@@ -436,6 +447,7 @@ export async function listScenarioSources(
         assetId: row.sourceAsset.id,
         slug: row.sourceAsset.slug,
         displayName: row.sourceAsset.displayName,
+        kind: row.sourceAsset.kind,
         repoOwner: row.sourceAsset.repoOwner,
         repoName: row.sourceAsset.repoName,
       },

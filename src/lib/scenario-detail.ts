@@ -11,6 +11,8 @@
  *   - **场景**：这张卡片讲的是「什么时候用」；
  *   - **直达的 Skill**：点一下就跳到源资产的详情页。
  */
+import type { AssetKind } from "@prisma/client";
+
 import { prisma } from "@/lib/prisma";
 
 /** 场景派生来源的展示名。 */
@@ -42,6 +44,8 @@ export type ScenarioDetailView = {
     assetId: string;
     slug: string;
     displayName: string;
+    /// 源资产的类型（详情页链接按它分派）。
+    kind: AssetKind;
     summaryZh: string | null;
     repoOwner: string | null;
     repoName: string | null;
@@ -69,6 +73,7 @@ export async function getScenarioDetail(slug: string): Promise<ScenarioDetailVie
               id: true,
               slug: true,
               displayName: true,
+              kind: true,
               summaryZh: true,
               repoOwner: true,
               repoName: true,
@@ -103,6 +108,7 @@ export async function getScenarioDetail(slug: string): Promise<ScenarioDetailVie
       assetId: detail.sourceAsset.id,
       slug: detail.sourceAsset.slug,
       displayName: detail.sourceAsset.displayName,
+      kind: detail.sourceAsset.kind,
       summaryZh: detail.sourceAsset.summaryZh,
       repoOwner: detail.sourceAsset.repoOwner,
       repoName: detail.sourceAsset.repoName,

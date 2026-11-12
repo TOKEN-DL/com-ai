@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { assetDetailHref } from "@/lib/asset-item";
 import { listScenarioSources } from "@/lib/scenario-service";
 import { buildSearchParams, parseSearchQuery, toUrlSearchParams } from "@/lib/search-params";
 import { getSearchService, type SearchSort } from "@/lib/search-service";
@@ -95,7 +96,9 @@ export default async function ScenarioListPage({
                 {source ? (
                   <span className="asset-meta">
                     {" · 对应 Skill "}
-                    <Link href={`/skills/${source.slug}`}>{source.displayName}</Link>
+                    <Link href={assetDetailHref(source.kind, source.slug)}>
+                      {source.displayName}
+                    </Link>
                     {source.repoOwner && source.repoName
                       ? ` · ${source.repoOwner}/${source.repoName}`
                       : ""}

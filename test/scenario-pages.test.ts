@@ -20,6 +20,7 @@ import { POST as postComment } from "@/app/api/assets/[slug]/comments/route";
 import { GET as searchApi } from "@/app/api/search/route";
 import ScenarioDetailPage from "@/app/scenarios/[slug]/page";
 import ScenarioListPage from "@/app/scenarios/page";
+import SearchPage from "@/app/search/page";
 import SkillDetailPage from "@/app/skills/[slug]/page";
 import { writeAsset } from "@/lib/asset-writer";
 import { prisma } from "@/lib/prisma";
@@ -190,6 +191,18 @@ describe("场景卡片能被统一搜索命中", () => {
     expect(body.facets.kind).toEqual(
       expect.arrayContaining([{ value: "SCENARIO", count: 1 }]),
     );
+  });
+
+  it("搜索页里的场景卡片指向自己的详情页", async () => {
+    await seedSkill();
+    const cardSlug = await derive();
+
+    const html = renderToStaticMarkup(
+      await SearchPage({ searchParams: Promise.resolve({ kind: "SCENARIO" }) }),
+    );
+
+    // 场景卡片有**自己的**详情页，不能落到 /skills/{卡片 slug}（那是 404）。
+    expect(html).toContain(`href="/scenarios/${cardSlug}"`);
   });
 });
 

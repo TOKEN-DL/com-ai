@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { assetDetailHref } from "@/lib/asset-item";
 import { listAssetComments } from "@/lib/comments";
 import { getScenarioDetail } from "@/lib/scenario-detail";
 
@@ -73,7 +74,9 @@ export default async function ScenarioDetailPage({
           <dl>
             <dt>对应 Skill</dt>
             <dd>
-              <Link href={`/skills/${card.source.slug}`}>{card.source.displayName}</Link>
+              <Link href={assetDetailHref(card.source.kind, card.source.slug)}>
+                {card.source.displayName}
+              </Link>
             </dd>
 
             <dt>来源仓库</dt>
