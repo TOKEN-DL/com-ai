@@ -59,6 +59,10 @@ export type PromptDetailView = {
   contentTier: ContentTier;
   summaryZh: string | null;
   summarySource: SummarySource | null;
+  /** 「何时用」——什么时候该用它（票 #7 / #26）。 */
+  whenToUse: string | null;
+  /** 「怎么用」——装上之后怎么用（票 #7 / #26）。 */
+  howToUse: string | null;
   repoOwner: string | null;
   repoName: string | null;
   repoUrl: string | null;
@@ -106,6 +110,8 @@ export async function getPromptDetail(slug: string): Promise<PromptDetailView | 
     contentTier: asset.contentTier,
     summaryZh: asset.summaryZh,
     summarySource: asset.summarySource,
+    whenToUse: asset.whenToUse,
+    howToUse: asset.howToUse,
     repoOwner: asset.repoOwner,
     repoName: asset.repoName,
     repoUrl: asset.repoUrl,

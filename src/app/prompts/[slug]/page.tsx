@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getPromptDetail } from "@/lib/prompt-detail";
 
 import { CopyButton } from "@/app/CopyButton";
+import { SummarySourceNote, SummaryUsage } from "@/app/SummaryUsage";
 
 // 详情要实时读库，不许被静态化。
 export const dynamic = "force-dynamic";
@@ -63,6 +64,29 @@ export default async function PromptDetailPage({
         <section className="summary">
           <h2>中文简介</h2>
           <p>{prompt.summaryZh}</p>
+          {/* 「AI 生成，版权归原作者」/「人工撰写」/「模板生成」——
+              来源必须标出来：读者才知道这段话能不能当真、该找谁问。 */}
+          <SummarySourceNote source={prompt.summarySource} />
+          {/* AI 生成的内容要能一键回到原文出处 —— 署名与原仓库链接放在一起，
+              读者不用往下翻就知道这段话依据的是哪份原文。 */}
+          {prompt.summarySource === "LLM" && prompt.repoUrl ? (
+            <p className="note">
+              原文与版权归属：{" "}
+              <a href={prompt.repoUrl} rel="noreferrer noopener" target="_blank">
+                {repoLabel}
+              </a>
+              {prompt.license ? ` · ${prompt.license}` : ""}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {/* 「何时用」与「怎么用」分区显示 —— 这是本平台相对通用提示词库的核心差异：
+          外部站点只给一堆提示词，不回答「我什么时候该用它」。 */}
+      {prompt.whenToUse || prompt.howToUse ? (
+        <section className="usage-section">
+          <h2>何时用 / 怎么用</h2>
+          <SummaryUsage whenToUse={prompt.whenToUse} howToUse={prompt.howToUse} />
         </section>
       ) : null}
 
