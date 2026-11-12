@@ -28,6 +28,8 @@ export type CliArgs = {
   slugs: string[];
   /// `--version X`：摘要生成器版本号。
   version?: string;
+  /// `--concurrency N`：同时处理多少条（默认 1 = 串行）。
+  concurrency?: number;
   /// `--force`：忽略缓存强制重算。
   force: boolean;
   /// `--dry-run`：只统计，不写库。
@@ -52,6 +54,14 @@ export function parseCliArgs(argv: string[]): CliArgs {
       i += 1;
       if (Number.isFinite(value) && value > 0) {
         options.limit = Math.floor(value);
+      }
+      continue;
+    }
+    if (arg === "--concurrency") {
+      const value = Number(argv[i + 1]);
+      i += 1;
+      if (Number.isFinite(value) && value > 0) {
+        options.concurrency = Math.floor(value);
       }
       continue;
     }

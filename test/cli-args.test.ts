@@ -67,4 +67,15 @@ describe("公共命令行参数解析", () => {
     expect(options.limit).toBe(10);
     expect(options.dryRun).toBe(true);
   });
+
+  it("--concurrency 读到的是并发数", () => {
+    expect(parseCliArgs(["--concurrency", "8"]).concurrency).toBe(8);
+  });
+
+  it("--concurrency 不是正整数时不采纳（不能静默变成 NaN）", () => {
+    expect(parseCliArgs(["--concurrency", "0"]).concurrency).toBeUndefined();
+    expect(parseCliArgs(["--concurrency", "-3"]).concurrency).toBeUndefined();
+    expect(parseCliArgs(["--concurrency", "abc"]).concurrency).toBeUndefined();
+    expect(parseCliArgs(["--concurrency"]).concurrency).toBeUndefined();
+  });
 });

@@ -14,6 +14,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { PATCH as overrideRoute } from "@/app/api/assets/[slug]/summary/route";
+import PromptDetailPage from "@/app/prompts/[slug]/page";
+import PromptListPage from "@/app/prompts/page";
 import SearchPage from "@/app/search/page";
 import SkillDetailPage from "@/app/skills/[slug]/page";
 import SkillListPage from "@/app/skills/page";
@@ -101,6 +103,34 @@ async function seedSkill(slug = "example-skills-pdf-skill"): Promise<void> {
       skill: {
         frontmatter: { name: "pdf-skill", description: "把 PDF 转成 Markdown。" },
         skillPath: "skills/pdf/SKILL.md",
+      },
+    },
+  });
+}
+
+/** 种一条 FULL 档的 Prompt（走生产同一条写入路径）。 */
+async function seedPrompt(slug = "example-prompts-music-prompt"): Promise<void> {
+  await writeAsset({
+    kind: "PROMPT",
+    slug,
+    displayName: "Instrumental Companion",
+    license: "MIT",
+    contentBody: "Upbeat 80s-influenced synth-pop anthem.",
+    summaryZh: "AI 写的中文简介。",
+    summarySource: "LLM",
+    whenToUse: "批量处理 PDF 时使用。",
+    howToUse: "安装后直接调用。",
+    repoOwner: "example",
+    repoName: "prompts",
+    repoUrl: "https://github.com/example/prompts",
+    upstreamUrl: "https://raw.githubusercontent.com/example/prompts/main/prompts.csv",
+    sourceId: "github-repo",
+    detail: {
+      prompt: {
+        modality: "MUSIC",
+        act: "Instrumental Companion",
+        toolTags: ["suno"],
+        promptBody: "Upbeat 80s-influenced synth-pop anthem.",
       },
     },
   });
@@ -317,6 +347,38 @@ describe("人工覆盖之后", () => {
     });
     expect(asset.summaryZh).toBe("人工改写的简介。");
     expect(asset.summarySource).toBe("HUMAN");
+  });
+});
+
+describe("Prompt 详情页：何时用 / 怎么用", () => {
+  it("简介、两个分区、来源标注与原仓库链接都在页面上", async () => {
+    await seedPrompt();
+
+    const element = await PromptDetailPage({
+      params: Promise.resolve({ slug: "example-prompts-music-prompt" }),
+    });
+    const html = renderToStaticMarkup(element);
+
+    expect(html).toContain("AI 写的中文简介。");
+    expect(html).toContain("何时用");
+    expect(html).toContain("怎么用");
+    expect(html).toContain("批量处理 PDF 时使用。");
+    expect(html).toContain("安装后直接调用。");
+    expect(html).toContain("AI 生成，版权归原作者");
+    expect(html).toContain("https://github.com/example/prompts");
+    expect(html).toContain("mit");
+  });
+
+  it("Prompt 列表页也展示「何时用 / 怎么用」", async () => {
+    await seedPrompt();
+
+    const element = await PromptListPage({ searchParams: Promise.resolve({}) });
+    const html = renderToStaticMarkup(element);
+
+    expect(html).toContain("何时用");
+    expect(html).toContain("怎么用");
+    expect(html).toContain("批量处理 PDF 时使用。");
+    expect(html).toContain("安装后直接调用。");
   });
 });
 

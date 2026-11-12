@@ -9,6 +9,8 @@ import { getSearchService, type SearchSort } from "@/lib/search-service";
 import { PROMPT_MODALITY_LABELS } from "@/lib/prompt-detail";
 import type { PromptModality } from "@prisma/client";
 
+import { SummaryUsage } from "@/app/SummaryUsage";
+
 // 列表要实时读库，不许被静态化。
 export const dynamic = "force-dynamic";
 
@@ -165,6 +167,8 @@ export default async function PromptListPage({
                     {` · 热度 ${item.heatScore}`}
                   </span>
                   {item.summaryZh ? <p className="asset-summary">{item.summaryZh}</p> : null}
+                  {/* 「何时用」与「怎么用」分区显示（票 #7 / #26）。 */}
+                  <SummaryUsage whenToUse={item.whenToUse} howToUse={item.howToUse} />
                 </li>
               ))}
             </ul>

@@ -67,6 +67,25 @@ describe("提示词", () => {
     const { user } = buildSummaryPrompt({ ...INPUT, contentBody: null });
     expect(user).toContain("未提供正文");
   });
+
+  it("带上模态与目标工具 —— 模型才知道这是条音乐提示词、目标是 Suno", () => {
+    const { user } = buildSummaryPrompt({
+      ...INPUT,
+      kind: "PROMPT",
+      modality: "MUSIC",
+      toolTags: ["suno"],
+    });
+
+    expect(user).toContain("MUSIC");
+    expect(user).toContain("Suno");
+  });
+
+  it("没有模态与工具时不塞空行", () => {
+    const { user } = buildSummaryPrompt({ ...INPUT, modality: null, toolTags: [] });
+
+    expect(user).not.toContain("模态：");
+    expect(user).not.toContain("目标工具：");
+  });
 });
 
 describe("解析模型回复", () => {

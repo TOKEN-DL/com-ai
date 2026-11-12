@@ -14,6 +14,7 @@ import {
   type SummaryDraft,
   type SummaryGenerator,
   type SummaryGeneratorInput,
+  formatToolLabels,
   templateSummaryDraft,
 } from "@/lib/summary-generator";
 
@@ -86,6 +87,17 @@ export function buildSummaryPrompt(input: SummaryGeneratorInput): {
 
   if (input.description && input.description.trim().length > 0) {
     parts.push(`作者自述：${input.description.trim()}`);
+  }
+
+  // 模态与目标工具（票 #26）：没有它们，模型不知道这是条音乐提示词、
+  // 目标是 Suno —— 写出来的「何时用」就会泛泛而谈。
+  if (input.modality) {
+    parts.push(`模态：${input.modality}`);
+  }
+
+  const tools = formatToolLabels(input.toolTags);
+  if (tools.length > 0) {
+    parts.push(`目标工具：${tools.join("、")}`);
   }
 
   if (content.length > 0) {
