@@ -10,7 +10,7 @@
  *
  * | 通道 | 取值 | 权重 | 作用 |
  * | --- | --- | --- | --- |
- * | 全文（标题 A + 简介 B） | `ts_rank_cd(..., 32)` ∈ [0,1] | 1.0 | 主排序依据 |
+ * | 全文（标题 A + 简介 B + 何时用 C + 怎么用 D） | `ts_rank_cd(..., 32)` ∈ [0,1] | 1.0 | 主排序依据 |
  * | 全文（正文 C，仅 FULL 档） | `ts_rank_cd(..., 32)` ∈ [0,1] | 0.6 | 正文命中补充 |
  * | pg_trgm 模糊 | `similarity()` ∈ [0,1] | 0.5 | 拼写接近 / 词序不同 |
  * | ILIKE 包含命中 | 0 / 1 | 0.4 | 中文短查询兜底 |
@@ -26,7 +26,8 @@
  * 恒为 0（pg_trgm 至少要 3 个字符）。
  *
  * 因此：
- *   - 查询串短于 3 个字符 → **只走 ILIKE 包含匹配**（标题 / slug / 简介 / 正文）；
+ *   - 查询串短于 3 个字符 → **只走 ILIKE 包含匹配**
+ *     （标题 / slug / 简介 / 何时用 / 怎么用 / 正文）；
  *   - 查询串 ≥ 3 个字符 → 全文 + trigram + ILIKE 三路都走，trigram 参与打分。
  *
  * ILIKE 用 `ILIKE ANY(ARRAY['%xxx%']::text[])` 的**字面量**形式：绑定参数形式
@@ -55,10 +56,20 @@ import type {
 } from "@/lib/search-service";
 import { defaultSortFor, SEARCH_SORTS } from "@/lib/search-service";
 
-/** 标题 + 简介的全文表达式。必须与 `Asset_fulltext_idx` 的定义逐字一致。 */
-const FTS_TITLE_SUMMARY = Prisma.raw(`(${ASSET_FULLTEXT_EXPRESSION})`);
+/**
+ * 索引覆盖的那部分文本的全文表达式：标题 A + 简介 B + 何时用 C + 怎么用 D。
+ *
+ * 必须与 `Asset_fulltext_idx` 的定义逐字一致（票 #28）。
+ */
+const FTS_FULLTEXT = Prisma.raw(`(${ASSET_FULLTEXT_EXPRESSION})`);
 
-/** 正文的全文表达式。只有 FULL 档的资产才有正文。 */
+/**
+ * 正文的全文表达式。只有 FULL 档的资产才有正文。
+ *
+ * ⚠️ **正文不在索引里** —— 正文平均 2 KB，整表 15 MB，进索引会让索引涨好几倍。
+ *    这一路只能靠顺序扫描，所以它是整条检索查询最慢的一环（票 #28 实测：
+ *    单独跑要 1.6 秒）。要治见同批登记的后续票。
+ */
 const FTS_BODY = Prisma.raw(`setweight(to_tsvector('simple', coalesce("contentBody", '')), 'C')`);
 
 /**
@@ -151,13 +162,24 @@ function sqlLiteral(value: string): string {
   return `E'${value.replace(/\\/g, "\\\\").replace(/'/g, "''")}'`;
 }
 
-/** 标题 / slug / 简介 / 正文上的「包含」匹配。 */
+/**
+ * 「包含」匹配：标题 / slug / 简介 / **何时用 / 怎么用** / 正文。
+ *
+ * 票 #28 把「何时用 / 怎么用」也加进来了：中文短查询（< 3 字符）只能走这条
+ * 通道兜底（'simple' 配置不切分中文，中文串整体是一个 token），
+ * 不加这两列的话，「何时用」里的中文关键词仍然搜不到。
+ *
+ * ⚠️ 正文的「包含」匹配带 `contentTier = 'FULL'` 条件：METADATA_ONLY 档
+ *    站内不复制原文（spec 决策 6），那一列本来就是空的。
+ */
 function buildLikeClause(q: string): Prisma.Sql {
   const pattern = Prisma.raw(sqlLiteral(`%${escapeLikePattern(q)}%`));
 
   return Prisma.sql`"displayName" ILIKE ANY(ARRAY[${pattern}]::text[])
     OR "slug" ILIKE ANY(ARRAY[${pattern}]::text[])
     OR "summaryZh" ILIKE ANY(ARRAY[${pattern}]::text[])
+    OR "whenToUse" ILIKE ANY(ARRAY[${pattern}]::text[])
+    OR "howToUse" ILIKE ANY(ARRAY[${pattern}]::text[])
     OR ("contentTier" = 'FULL' AND "contentBody" ILIKE ANY(ARRAY[${pattern}]::text[]))`;
 }
 
@@ -228,7 +250,7 @@ function buildMatchClause(q: string): Prisma.Sql {
   }
 
   const tsquery = Prisma.sql`plainto_tsquery('simple', ${q})`;
-  const fulltextTitleSummary = Prisma.sql`${FTS_TITLE_SUMMARY} @@ ${tsquery}`;
+  const fulltextSearchable = Prisma.sql`${FTS_FULLTEXT} @@ ${tsquery}`;
   const fulltextBody = Prisma.sql`${FTS_BODY} @@ ${tsquery}`;
   const like = buildLikeClause(q);
   const trgm =
@@ -236,13 +258,13 @@ function buildMatchClause(q: string): Prisma.Sql {
   // 依赖目标的文本（票 #17）：搜「PDF 处理」时，依赖了 PDF 工具的资产也算命中。
   const dependencyText = buildDependencyTextClause(q);
 
-  return Prisma.sql`(${fulltextTitleSummary} OR ${fulltextBody} OR ${trgm} OR ${like} OR ${dependencyText})`;
+  return Prisma.sql`(${fulltextSearchable} OR ${fulltextBody} OR ${trgm} OR ${like} OR ${dependencyText})`;
 }
 
 /** 相关度得分：五路证据加权求和。 */
 function buildScoreClause(q: string): Prisma.Sql {
   const tsquery = Prisma.sql`plainto_tsquery('simple', ${q})`;
-  const fulltextTitleSummary = Prisma.sql`ts_rank_cd(${FTS_TITLE_SUMMARY}, ${tsquery}, 32)`;
+  const fulltextSearchable = Prisma.sql`ts_rank_cd(${FTS_FULLTEXT}, ${tsquery}, 32)`;
   const fulltextBody = Prisma.sql`ts_rank_cd(${FTS_BODY}, ${tsquery}, 32)`;
   const trgm = Prisma.sql`greatest(similarity(lower("displayName"), lower(${q})), similarity(lower("slug"), lower(${q})))`;
   const likeHit = Prisma.sql`CASE WHEN ${buildLikeClause(q)} THEN 1 ELSE 0 END`;
@@ -250,7 +272,7 @@ function buildScoreClause(q: string): Prisma.Sql {
   // 它是一条**间接**证据，不该压过资产自身的标题 / 简介。
   const dependencyHit = Prisma.sql`CASE WHEN ${buildDependencyTextClause(q)} THEN 1 ELSE 0 END`;
 
-  return Prisma.sql`(${WEIGHT_FULLTEXT} * ${fulltextTitleSummary}
+  return Prisma.sql`(${WEIGHT_FULLTEXT} * ${fulltextSearchable}
     + ${WEIGHT_FULLTEXT_BODY} * ${fulltextBody}
     + ${WEIGHT_TRGM} * ${trgm}
     + ${WEIGHT_LIKE} * ${likeHit}

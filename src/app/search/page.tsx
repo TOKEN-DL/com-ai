@@ -61,6 +61,7 @@ export default async function SearchPage({
       <h1>搜索</h1>
       <p className="lede">
         按关键词找 Skill / MCP / Prompt —— 全文检索 + 模糊匹配，不依赖中文分词扩展。
+        标题、简介、**何时用 / 怎么用**都参与检索（票 #28）。
       </p>
 
       <form className="search-form" action="/search" method="get">

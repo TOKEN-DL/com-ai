@@ -201,9 +201,22 @@ async function fixUpdatedAtOrder(): Promise<void> {
   }
 }
 
-/** 归一化 SQL 表达式：去类型转换、去多余空白、统一小写。 */
+/**
+ * 归一化 SQL 表达式：去类型转换、去多余空白、**去括号**。
+ *
+ * ⚠️ 去括号是票 #28 加的：Postgres 渲染 `||` 链时按左结合加括号 ——
+ *    源码里写 `A || B || C || D`，`pg_get_expr` 给的是 `(((A || B) || C) || D)`。
+ *    不去括号的话，同一个表达式在两边文本不同，「逐字一致」那条断言会假红。
+ *
+ * 去括号对这条断言是无损的：这一串 `||` 拼的都是 tsvector，
+ * `||` 对它本来就可交换、可结合 —— 括号只影响分组，不影响含义。
+ * 真出漂移（少了哪一列、权重字母写错、列名写错）文本照样对不上。
+ */
 function normalizeSql(sql: string): string {
-  return sql.toLowerCase().replace(/::(?:"[^"]+"|[a-z_]+)/g, "").replace(/\s+/g, " ").trim();
+  return sql
+    .toLowerCase()
+    .replace(/::(?:"[^"]+"|[a-z_]+)/g, "")
+    .replace(/[()\s]/g, "");
 }
 
 describe("SearchService —— 中文查询", () => {
@@ -502,5 +515,17 @@ describe("SearchService —— 索引与表达式", () => {
 
     expect(rows).toHaveLength(1);
     expect(normalizeSql(rows[0].expr)).toContain(normalizeSql(ASSET_FULLTEXT_EXPRESSION));
+  });
+
+  it("全文索引覆盖「何时用 / 怎么用」（票 #28）", async () => {
+    const rows = await prisma.$queryRaw<{ expr: string }[]>`
+      SELECT pg_get_expr("indexprs", "indrelid") AS "expr"
+      FROM pg_index
+      WHERE "indexrelid" = to_regclass('"Asset_fulltext_idx"')
+    `;
+
+    const expr = rows[0]?.expr ?? "";
+    expect(expr).toContain('"whenToUse"');
+    expect(expr).toContain('"howToUse"');
   });
 });
