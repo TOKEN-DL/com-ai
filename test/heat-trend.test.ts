@@ -17,6 +17,7 @@ import { ingestItems } from "@/collector/ingest";
 import type { RawItem } from "@/collector/types";
 import { prisma } from "@/lib/prisma";
 import { deriveScenarioCards } from "@/lib/scenario-service";
+import { formatTrend } from "@/lib/trend";
 
 /** 一条带 8 周趋势序列的采集条目。 */
 function rawItemWithTrend(overrides: Partial<RawItem> = {}): RawItem {
@@ -116,6 +117,24 @@ describe("computeHeatScore —— 热度分", () => {
   it("负数与非法输入按 0 处理", () => {
     expect(computeHeatScore({ installs: -5, stars: -5 })).toBe(0);
     expect(computeHeatScore({ installs: Number.NaN, stars: Number.NaN })).toBe(0);
+  });
+});
+
+describe("formatTrend —— 增速的展示", () => {
+  it("正增速带加号，负增速带负号", () => {
+    expect(formatTrend(0.12)).toBe("+12%");
+    expect(formatTrend(-0.3)).toBe("-30%");
+  });
+
+  it("0 显示为「—」（持平与没有趋势数据都不该说成持平）", () => {
+    expect(formatTrend(0)).toBe("—");
+  });
+
+  it("夹住的那一端带「≥」「≤」—— 1 其实是「至少翻倍」", () => {
+    // weeklyTrend 把结果夹在 [-1, 1]，1 可能是 +100% 也可能是 +900%（夹住了）；
+    // 历史基数为 0 的新技能也归到 1。说成「≥」才是如实的。
+    expect(formatTrend(1)).toBe("≥+100%");
+    expect(formatTrend(-1)).toBe("≤-100%");
   });
 });
 
