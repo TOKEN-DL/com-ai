@@ -289,6 +289,8 @@ export async function deriveScenarioCards(sourceAssetId: string): Promise<Scenar
       stars: source.stars,
       installs: source.installs,
       heatScore: source.heatScore,
+      // 近期增速跟着源资产走（票 #24）：卡片是源 Skill 的派生产物，热度口径一致。
+      trendScore: source.trendScore,
       detail: {
         scenario: {
           sourceAssetId: source.id,

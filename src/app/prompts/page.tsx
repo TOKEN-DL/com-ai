@@ -5,7 +5,8 @@ import {
   parseSearchQuery,
   toUrlSearchParams,
 } from "@/lib/search-params";
-import { getSearchService, type SearchSort } from "@/lib/search-service";
+import { getSearchService } from "@/lib/search-service";
+import { resolvePageSort, SORT_LABELS, sortOptionsForKinds } from "@/lib/sort-options";
 import { PROMPT_MODALITY_LABELS } from "@/lib/prompt-detail";
 import type { PromptModality } from "@prisma/client";
 
@@ -14,15 +15,12 @@ import { SummaryUsage } from "@/app/SummaryUsage";
 // 列表要实时读库，不许被静态化。
 export const dynamic = "force-dynamic";
 
-/** 排序维度的展示名。 */
-const SORT_LABELS: Record<SearchSort, string> = {
-  relevance: "相关度",
-  heat: "热度",
-  recent: "更新时间",
-  name: "名称",
-};
-
-const SORT_OPTIONS: SearchSort[] = ["relevance", "heat", "recent", "name"];
+/**
+ * 排序选项（票 #24）。
+ *
+ * Prompt 没有安装量口径（`installs` 恒为 0），所以只有基础四个。
+ */
+const SORT_OPTIONS = sortOptionsForKinds(["PROMPT"]);
 
 /** 四种模态（顺序 = 展示顺序）。 */
 const MODALITIES: PromptModality[] = ["TEXT", "IMAGE", "VIDEO", "MUSIC"];
@@ -52,6 +50,7 @@ export default async function PromptListPage({
   // 只看 Prompt：分类是列表页自己的过滤条件，与统一搜索的其它维度正交。
   const result = await getSearchService().search({
     ...parsed,
+    sort: resolvePageSort(parsed.sort, SORT_OPTIONS, parsed.q),
     filters: { ...parsed.filters, kind: ["PROMPT"] },
     pageSize: parsed.pageSize ?? 50,
   });

@@ -22,6 +22,7 @@ import {
   computeContentHash,
   generateSummary,
 } from "@/lib/summary-service";
+import { weeklyTrend } from "@/collector/heat";
 import type { RawItem } from "@/collector/types";
 
 export type IngestOutcome = {
@@ -189,6 +190,9 @@ export function toAssetWriteInput(
     stars: item.metadata.stars,
     installs: item.metadata.installs,
     heatScore: item.metadata.heatScore,
+    // 近期增速（票 #24）：skills.sh 榜单给的近 8 周周安装量算出来的趋势。
+    // 站点地图来源的条目没有趋势序列 → 0。
+    trendScore: weeklyTrend(item.metadata.weeklyInstalls),
     detail: {
       skill: {
         frontmatter: item.metadata.frontmatter as Prisma.InputJsonValue,

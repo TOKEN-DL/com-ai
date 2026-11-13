@@ -138,6 +138,8 @@ export type AssetWriteInput = {
   stars?: number;
   installs?: number;
   heatScore?: number;
+  /// 近期增速（票 #24）：[-1, 1]，0 = 没有趋势数据。
+  trendScore?: number;
   /// 1:1 类型扩展表。
   detail?: AssetDetailInput;
 };
@@ -246,6 +248,7 @@ export async function writeAsset(input: AssetWriteInput): Promise<Asset> {
     stars: input.stars ?? 0,
     installs: input.installs ?? 0,
     heatScore: input.heatScore ?? 0,
+    trendScore: input.trendScore ?? 0,
     // 重新采集 = 重新变热：清掉归档标记（spec 决策 4 的三档保留策略）。
     // 归档只由保留策略打上，也只由「重新采集」或「又变热」取消。
     archivedAt: null,

@@ -97,6 +97,56 @@ code {
   font-size: 0.9em;
 }
 
+/* ── 首页榜单（票 #24）─────────────────────────────────────────── */
+
+.board {
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.board h2 {
+  font-size: 1rem;
+  margin: 0 0 0.25rem;
+}
+
+.board-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0 0 0.75rem;
+}
+
+.board-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: board-rank;
+}
+
+.board-list li {
+  border-bottom: 1px solid var(--line);
+  padding: 0.5rem 0;
+}
+
+.board-list li:last-child {
+  border-bottom: none;
+}
+
+.board-list a {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.board-list a:hover {
+  text-decoration: underline;
+}
+
+.board-more {
+  margin: 0.75rem 0 0;
+  font-size: 0.9rem;
+}
+
 /* ── Skill 列表页 ─────────────────────────────────────────────── */
 
 .asset-list {

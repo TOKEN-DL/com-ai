@@ -190,7 +190,7 @@ describe("列表页与搜索结果项", () => {
   it("列表页展示中文简介与「何时用 / 怎么用」", async () => {
     await seedSkill();
 
-    const element = await SkillListPage();
+    const element = await SkillListPage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(element);
 
     expect(html).toContain("AI 写的中文简介。");
