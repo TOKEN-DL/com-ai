@@ -186,6 +186,11 @@ model Asset {
   installs Int   @default(0)
   /// 热度加权分（spec「纯函数单元测试」之一）。
   heatScore Float @default(0)
+  /// 近期增速（票 #24）：近 8 周周安装量算出来的趋势，[-1, 1]。
+  ///
+  /// 0 = 没有趋势数据（站点地图来源的条目既没有安装量也没有趋势序列）。
+  /// 「近期增长最快」榜按这一列排序。
+  trendScore Float @default(0)
   /// 采集源标识（如 skills.sh / smithery）。
   sourceId String?
   publishedAt  DateTime?
@@ -227,6 +232,7 @@ model Asset {
   @@index([kind])
   @@index([contentTier])
   @@index([heatScore])
+  @@index([trendScore])
   @@index([sourceId])
   @@index([kind, heatScore])
   @@index([repoOwner, repoName])
