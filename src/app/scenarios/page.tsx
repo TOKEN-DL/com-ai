@@ -3,20 +3,18 @@ import Link from "next/link";
 import { assetDetailHref } from "@/lib/asset-item";
 import { listScenarioSources } from "@/lib/scenario-service";
 import { buildSearchParams, parseSearchQuery, toUrlSearchParams } from "@/lib/search-params";
-import { getSearchService, type SearchSort } from "@/lib/search-service";
+import { getSearchService } from "@/lib/search-service";
+import { resolvePageSort, SORT_LABELS, sortOptionsForKinds } from "@/lib/sort-options";
 
 // 列表要实时读库，不许被静态化。
 export const dynamic = "force-dynamic";
 
-/** 排序维度的展示名。 */
-const SORT_LABELS: Record<SearchSort, string> = {
-  relevance: "相关度",
-  heat: "热度",
-  recent: "更新时间",
-  name: "名称",
-};
-
-const SORT_OPTIONS: SearchSort[] = ["relevance", "heat", "recent", "name"];
+/**
+ * 排序选项（票 #24）。
+ *
+ * 场景卡片继承源 Skill 的安装量与增速，所以有安装量口径。
+ */
+const SORT_OPTIONS = sortOptionsForKinds(["SCENARIO"]);
 
 /**
  * 场景卡片列表页（票 #12）。
@@ -44,6 +42,7 @@ export default async function ScenarioListPage({
   // 只看场景卡片：分类是列表页自己的过滤条件，与统一搜索的其它维度正交。
   const result = await getSearchService().search({
     ...parsed,
+    sort: resolvePageSort(parsed.sort, SORT_OPTIONS, parsed.q),
     filters: { ...parsed.filters, kind: ["SCENARIO"] },
     pageSize: parsed.pageSize ?? 50,
   });

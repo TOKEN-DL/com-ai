@@ -56,8 +56,52 @@ import { PostgresSearchService } from "@/lib/search-postgres";
  */
 export const UNDECLARED_LICENSE = "__none__";
 
-/** 排序维度。 */
-export type SearchSort = "relevance" | "heat" | "recent" | "name";
+/**
+ * 排序维度。
+ *
+ * - `relevance` —— 按关键词相关度（有查询词时才有意义）。
+ * - `heat` —— 综合热度分（安装量与 star 的加权）。
+ * - `recent` —— 最近更新时间。
+ * - `name` —— 名称。
+ * - `installs` —— **累计安装量**（spec 决策 5 的 all-time 视图，票 #24）。
+ * - `trending` —— **近期增速**（spec 决策 5 的 trending 视图，票 #24）。
+ *
+ * ⚠️ 第三个热度视图 **hot**（每小时对比昨日同时段）不在这里 ——
+ *    它需要安装量的历史快照管道，单独在票 #31 里做。
+ */
+export type SearchSort =
+  | "relevance"
+  | "heat"
+  | "recent"
+  | "name"
+  | "installs"
+  | "trending";
+
+/**
+ * 全部合法的排序维度。
+ *
+ * URL 层（`search-params.ts`）、检索实现（`search-postgres.ts`）、
+ * 页面层（`sort-options.ts`）共用这一份白名单 ——
+ * 三处各写一遍，早晚会对不上。
+ */
+export const SEARCH_SORTS: readonly SearchSort[] = [
+  "relevance",
+  "heat",
+  "recent",
+  "name",
+  "installs",
+  "trending",
+];
+
+/**
+ * 默认排序口径：有查询词按相关度，纯浏览按热度。
+ *
+ * 检索实现与页面层共用这一份 —— 下拉框显示「相关度」而实际按热度排，
+ * 就是两边各算一次算岔了。
+ */
+export function defaultSortFor(q: string): SearchSort {
+  return q.trim().length > 0 ? "relevance" : "heat";
+}
 
 /** 过滤条件（分面矩阵：分类 × 许可证 × 是否有官方版本 × 模态 × 工具）。 */
 export type SearchFilters = {
@@ -134,7 +178,12 @@ export type SearchHit = {
   isOfficial: boolean;
   heatScore: number;
   installs: number;
+  /// 近期增速（票 #24）：[-1, 1]，0 = 没有趋势数据。
+  trendScore: number;
   stars: number;
+  /// 收藏数 / 点赞数（跨三种 kind 统一计数，票 #24 起进检索结果）。
+  favoriteCount: number;
+  likeCount: number;
   repoOwner: string | null;
   repoName: string | null;
   repoUrl: string | null;

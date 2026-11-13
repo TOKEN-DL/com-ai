@@ -53,6 +53,7 @@ import type {
   SearchService,
   SearchSort,
 } from "@/lib/search-service";
+import { defaultSortFor, SEARCH_SORTS } from "@/lib/search-service";
 
 /** 标题 + 简介的全文表达式。必须与 `Asset_fulltext_idx` 的定义逐字一致。 */
 const FTS_TITLE_SUMMARY = Prisma.raw(`(${ASSET_FULLTEXT_EXPRESSION})`);
@@ -93,8 +94,8 @@ const WEIGHT_DEPENDENCY = Prisma.raw("0.5");
 /** 取数用的列。 */
 const SELECT_COLUMNS = Prisma.raw(
   `"id", "slug", "kind", "displayName", "summaryZh", "whenToUse", "howToUse", ` +
-    `"license", "contentTier", "isOfficial", "heatScore", "installs", "stars", ` +
-    `"repoOwner", "repoName", "repoUrl", "updatedAt"`,
+    `"license", "contentTier", "isOfficial", "heatScore", "installs", "trendScore", "stars", ` +
+    `"favoriteCount", "likeCount", "repoOwner", "repoName", "repoUrl", "updatedAt"`,
 );
 
 /** 取数行。 */
@@ -111,7 +112,10 @@ type AssetRow = {
   isOfficial: boolean;
   heatScore: number;
   installs: number;
+  trendScore: number;
   stars: number;
+  favoriteCount: number;
+  likeCount: number;
   repoOwner: string | null;
   repoName: string | null;
   repoUrl: string | null;
@@ -344,7 +348,16 @@ function buildWhereClause(normalized: NormalizedQuery, skip?: FilterDimension): 
     AND ${buildMatchClause(normalized.q)}`;
 }
 
-/** 排序子句。 */
+/**
+ * 排序子句。
+ *
+ * 每个维度都是「主指标降序 + 热度降序」兜底 —— 同分条目的顺序必须稳定，
+ * 否则每次采集刷新数据，列表顺序就跟着抖一下。
+ *
+ * `installs` / `trending` 是 spec 决策 5 的两个热度视图（票 #24）：
+ * 累计安装量与近期增速。第三个视图 hot（每小时对比昨日同时段）需要安装量
+ * 的历史快照，单独在票 #31 里做。
+ */
 function buildOrderClause(sort: SearchSort): Prisma.Sql {
   if (sort === "relevance") {
     return Prisma.sql`"score" DESC, "heatScore" DESC, "updatedAt" DESC`;
@@ -354,6 +367,12 @@ function buildOrderClause(sort: SearchSort): Prisma.Sql {
   }
   if (sort === "name") {
     return Prisma.sql`"displayName" ASC, "heatScore" DESC`;
+  }
+  if (sort === "installs") {
+    return Prisma.sql`"installs" DESC, "heatScore" DESC, "updatedAt" DESC`;
+  }
+  if (sort === "trending") {
+    return Prisma.sql`"trendScore" DESC, "heatScore" DESC, "updatedAt" DESC`;
   }
   return Prisma.sql`"heatScore" DESC, "updatedAt" DESC`;
 }
@@ -441,11 +460,11 @@ function isPromptModality(value: string): value is PromptModality {
 }
 
 function resolveSort(sort: SearchSort | undefined, q: string): SearchSort {
-  if (sort === "relevance" || sort === "heat" || sort === "recent" || sort === "name") {
+  if (sort && SEARCH_SORTS.includes(sort)) {
     return sort;
   }
   // 有查询词时默认按相关度，纯浏览时默认按热度。
-  return q.length > 0 ? "relevance" : "heat";
+  return defaultSortFor(q);
 }
 
 function clampInt(value: number | undefined, min: number, max: number, fallback: number): number {
@@ -603,7 +622,10 @@ function toHit(row: AssetRow): SearchHit {
     isOfficial: row.isOfficial,
     heatScore: row.heatScore,
     installs: row.installs,
+    trendScore: row.trendScore,
     stars: row.stars,
+    favoriteCount: row.favoriteCount,
+    likeCount: row.likeCount,
     repoOwner: row.repoOwner,
     repoName: row.repoName,
     repoUrl: row.repoUrl,

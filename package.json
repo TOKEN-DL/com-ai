@@ -30,6 +30,7 @@
     "collect:skills": "node scripts/collect-skills.mjs",
     "collect:prompts": "node scripts/collect-prompts.mjs",
     "collect:batch": "node scripts/collect-batch.mjs",
+    "sync:heat": "node scripts/sync-heat-metrics.mjs",
     "summaries:regenerate": "node scripts/regenerate-summaries.mjs",
     "scenarios:derive": "node scripts/derive-scenarios.mjs",
     "sync:versions": "node scripts/sync-versions.mjs",

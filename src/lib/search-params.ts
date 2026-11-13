@@ -11,14 +11,23 @@
 import { AssetKind, PromptModality } from "@prisma/client";
 
 import {
+  SEARCH_SORTS,
   UNDECLARED_LICENSE,
   type NormalizedQuery,
   type SearchQuery,
   type SearchSort,
 } from "@/lib/search-service";
 
-/** 允许的排序维度。 */
-const SORTS: readonly SearchSort[] = ["relevance", "heat", "recent", "name"];
+/**
+ * 允许的排序维度。
+ *
+ * 与 {@link SearchSort} 保持一致 —— 这是 URL 层的白名单。
+ *
+ * ⚠️ 某个页面**是否提供**某个口径由 `src/lib/sort-options.ts` 按分类决定
+ *    （MCP / PROMPT 没有安装量，不给「安装量」选项）；
+ *    这里只管「这个值是不是一个合法的排序维度」。
+ */
+const SORTS: readonly SearchSort[] = SEARCH_SORTS;
 
 /** 默认每页条数（拼 URL 时不重复写出来）。 */
 const DEFAULT_PAGE_SIZE = 20;

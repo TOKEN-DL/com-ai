@@ -50,7 +50,7 @@ describe("详情页与列表页展示互动计数", () => {
   it("列表页显示收藏数与点赞数", async () => {
     await seedSkillWithInteractions("page-list-skill");
 
-    const html = renderToStaticMarkup(await SkillListPage());
+    const html = renderToStaticMarkup(await SkillListPage({ searchParams: Promise.resolve({}) }));
 
     expect(html).toContain("收藏 7");
     expect(html).toContain("点赞 9");
