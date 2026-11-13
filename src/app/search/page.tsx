@@ -3,7 +3,8 @@ import Link from "next/link";
 
 import { assetDetailHref } from "@/lib/asset-item";
 import { buildSearchParams, isAssetKind, isPromptModality, parseSearchQuery, toUrlSearchParams } from "@/lib/search-params";
-import { getSearchService, type NormalizedQuery, type SearchSort } from "@/lib/search-service";
+import { getSearchService, type NormalizedQuery } from "@/lib/search-service";
+import { resolvePageSort, SORT_LABELS, sortOptionsForKinds } from "@/lib/sort-options";
 import { PROMPT_MODALITY_LABELS } from "@/lib/prompt-detail";
 
 import { SummaryUsage } from "@/app/SummaryUsage";
@@ -18,16 +19,6 @@ const KIND_LABELS: Record<AssetKind, string> = {
   PROMPT: "Prompt",
   SCENARIO: "场景卡片",
 };
-
-/** 排序维度的展示名。 */
-const SORT_LABELS: Record<SearchSort, string> = {
-  relevance: "相关度",
-  heat: "热度",
-  recent: "更新时间",
-  name: "名称",
-};
-
-const SORT_OPTIONS: SearchSort[] = ["relevance", "heat", "recent", "name"];
 
 /** 在一组值里切换某个值（点已选中的 = 取消选择）。 */
 function toggle<T>(values: T[], value: T): T[] {
@@ -56,7 +47,13 @@ export default async function SearchPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const raw = await searchParams;
-  const result = await getSearchService().search(parseSearchQuery(toUrlSearchParams(raw)));
+  const parsed = parseSearchQuery(toUrlSearchParams(raw));
+  // 排序选项按当前分类过滤（票 #24）：只看 MCP / Prompt 时没有安装量口径。
+  const sortOptions = sortOptionsForKinds(parsed.filters?.kind);
+  const result = await getSearchService().search({
+    ...parsed,
+    sort: resolvePageSort(parsed.sort, sortOptions, parsed.q),
+  });
   const query = result.query;
 
   return (
@@ -76,7 +73,7 @@ export default async function SearchPage({
           aria-label="关键词"
         />
         <select className="search-sort" name="sort" defaultValue={query.sort} aria-label="排序">
-          {SORT_OPTIONS.map((option) => (
+          {sortOptions.map((option) => (
             <option key={option} value={option}>
               {SORT_LABELS[option]}
             </option>
